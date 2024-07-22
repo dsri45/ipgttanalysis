@@ -9,3 +9,129 @@ To learn more about Quarto websites visit <https://quarto.org/docs/websites>.
 ```{r}
 1 + 1
 ```
+
+# IPGTT Data Cleaning and Analysis
+
+Data Dictionary
+
+| Name            | Data Type | Description                                            | Unit of Measurement |
+|-----------------|-----------------|--------------------|-----------------|
+| mouse_id        | chr       | Unique identifier for each mouse                       | *NA*                |
+| mouse           | chr       | Identifier or name assigned to each mouse              | *NA*                |
+| genotype        | factor    | Genetic constitution of each mouse (e.g., WT, Het, KO) | *NA*                |
+| sex             | factor    | Sex of the mouse (e.g., Male, Female)                  | *NA*                |
+| test_week       | num       | Week number when the test was conducted                | weeks               |
+| time_point      | num       | Specific time point at which data was collected        | min                 |
+| body_weight     | num       | Body weight of the mouse                               | g                   |
+| glucose reading | num       | Blood glucose level of the mouse                       | mg/dL               |
+
+#### Filtering Unnecessary Data:
+
+```{r}
+library(readxl)
+library(dplyr)
+IPGTT_tidy_data_corrected <- read_excel("C:/Users/dhana/Desktop/ISB/DataFrames/T1D/data/IPGTT_tidy_data_corrected.xlsx")
+
+summary(IPGTT_tidy_data_corrected)
+
+# Removing Mouse and nan data values that were created during ChatGPT analysis
+IPGTT_data <- IPGTT_tidy_data_corrected %>% filter(Mouse != "Mouse")
+IPGTT_data <- IPGTT_data %>% filter(Mouse != "nan")
+```
+
+```{r}
+IPGTT_data <- IPGTT_data %>% filter(!(is.na(BW) & is.na(`Glucose Reading`)))
+#IPGTT_data <- IPGTT_data %>% filter(!is.na(`Glucose Reading`))
+#IPGTT_data <- IPGTT_data[!(is.na(IPGTT_data$BW) & is.na(IPGTT_data$`Glucose Reading`)), ]
+```
+
+#### Changing variable names according to Tidy Data guidelines
+
+##### **(Saved old names for future reference)**
+
+```{r}
+
+old_names <- names(IPGTT_data)
+
+new_names <- c("mouse", "body_weight", "test_week", "genotype", "sex", "time_point", "glucose_reading")
+names(IPGTT_data) <- new_names
+```
+
+#### Viewing variable types
+
+```{r}
+str(IPGTT_data)
+```
+
+#### Creating unique mouse ID's depending on its name and genotype
+
+```{r}
+
+IPGTT_data <- IPGTT_data %>% mutate(mouse_id = paste(mouse, genotype, sep = "-"))
+
+
+
+```
+
+#### Converting time_point from char to numeric
+
+```{r}
+library(dplyr)
+library(stringr)
+
+IPGTT_data <- IPGTT_data %>% mutate(time_point = as.numeric(str_extract(time_point, "\\d+")))
+#IPGTT_data <- IPGTT_data %>% select(-time_point)
+```
+
+### Factors
+
+```{r}
+# IPGTT_data$sex <-  factor(IPGTT_data$sex, levels = c("Female", "Male"))
+# IPGTT_data$genotype <- factor(IPGTT_data$genotype, levels = c("WT-WT", "Het-NOD", "KO-NOD"))
+
+
+IPGTT_data$sex <-  factor(IPGTT_data$sex)
+IPGTT_data$genotype <- factor(IPGTT_data$genotype)
+
+# Checking to see if data type changed
+str(IPGTT_data)
+```
+
+#### Relocating columns for easier readability
+
+```{r}
+IPGTT_data <- IPGTT_data %>% relocate(mouse_id, .before = mouse)
+IPGTT_data <- IPGTT_data %>% relocate(body_weight, .before = glucose_reading)
+IPGTT_data <- IPGTT_data %>% relocate(genotype, .before = test_week)
+IPGTT_data <- IPGTT_data %>% relocate(sex, .before = test_week)
+IPGTT_data <- IPGTT_data %>% relocate(body_weight, .before = glucose_reading)
+IPGTT_data <- IPGTT_data %>% relocate(time_point, .before = body_weight)
+```
+
+```{r}
+#IPGTT trajectories overlaid with within-genotype medians
+
+library(dplyr)
+library(ggplot2)
+
+okabe_ito_palette <- rep(grDevices::palette.colors(palette = "Okabe-Ito"))
+
+IPGTT_fil <- IPGTT_data %>% filter(!is.na(glucose_reading), test_week %in% 1:4)
+
+
+
+median_data <- IPGTT_data %>% filter(!is.na(glucose_reading), test_week %in% 1:4)  %>% 
+  group_by(time_point, genotype, test_week) %>%
+  summarise(median_glucose_reading = median(glucose_reading, na.rm = TRUE))
+
+ggplot(IPGTT_fil, aes(time_point, glucose_reading, color = genotype, group = mouse_id)) +
+  geom_line(alpha = 0.3) +
+  geom_line(data = median_data, aes(x = time_point, y = median_glucose_reading, color = genotype, group = genotype)) + 
+  facet_wrap(~ test_week,  ncol = 4) +
+  theme_minimal() +
+  scale_x_continuous(breaks=seq(0,120, by=30)) +
+  scale_color_manual(values = okabe_ito_palette) +
+  labs(title = "IPGTT trajectories overlaid with within-genotype medians", x="Test time (min)", y = "Blood glucose (mg/dL)",   subtitle = "(First four weeks of data)") +
+  theme(legend.position = "bottom")
+
+```

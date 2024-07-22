@@ -142,7 +142,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <!-- sidebar -->
 <!-- margin-sidebar -->
     <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
-        
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#ipgtt-data-cleaning-and-analysis" id="toc-ipgtt-data-cleaning-and-analysis" class="nav-link active" data-scroll-target="#ipgtt-data-cleaning-and-analysis">IPGTT Data Cleaning and Analysis</a>
+  <ul class="collapse">
+  <li><a href="#factors" id="toc-factors" class="nav-link" data-scroll-target="#factors">Factors</a></li>
+  </ul></li>
+  </ul>
+</nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
@@ -174,8 +183,244 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <pre><code>[1] 2</code></pre>
 </div>
 </div>
+<section id="ipgtt-data-cleaning-and-analysis" class="level1">
+<h1>IPGTT Data Cleaning and Analysis</h1>
+<p>Data Dictionary</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 23%">
+<col style="width: 28%">
+<col style="width: 23%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Data Type</th>
+<th>Description</th>
+<th>Unit of Measurement</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>mouse_id</td>
+<td>chr</td>
+<td>Unique identifier for each mouse</td>
+<td><em>NA</em></td>
+</tr>
+<tr class="even">
+<td>mouse</td>
+<td>chr</td>
+<td>Identifier or name assigned to each mouse</td>
+<td><em>NA</em></td>
+</tr>
+<tr class="odd">
+<td>genotype</td>
+<td>factor</td>
+<td>Genetic constitution of each mouse (e.g., WT, Het, KO)</td>
+<td><em>NA</em></td>
+</tr>
+<tr class="even">
+<td>sex</td>
+<td>factor</td>
+<td>Sex of the mouse (e.g., Male, Female)</td>
+<td><em>NA</em></td>
+</tr>
+<tr class="odd">
+<td>test_week</td>
+<td>num</td>
+<td>Week number when the test was conducted</td>
+<td>weeks</td>
+</tr>
+<tr class="even">
+<td>time_point</td>
+<td>num</td>
+<td>Specific time point at which data was collected</td>
+<td>min</td>
+</tr>
+<tr class="odd">
+<td>body_weight</td>
+<td>num</td>
+<td>Body weight of the mouse</td>
+<td>g</td>
+</tr>
+<tr class="even">
+<td>glucose reading</td>
+<td>num</td>
+<td>Blood glucose level of the mouse</td>
+<td>mg/dL</td>
+</tr>
+</tbody>
+</table>
+<section id="filtering-unnecessary-data" class="level4">
+<h4 class="anchored" data-anchor-id="filtering-unnecessary-data">Filtering Unnecessary Data:</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(readxl)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>
+Attaching package: 'dplyr'</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:stats':
+
+    filter, lag</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>The following objects are masked from 'package:base':
+
+    intersect, setdiff, setequal, union</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>IPGTT_tidy_data_corrected <span class="ot">&lt;-</span> <span class="fu">read_excel</span>(<span class="st">"C:/Users/dhana/Desktop/ISB/DataFrames/T1D/data/IPGTT_tidy_data_corrected.xlsx"</span>)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(IPGTT_tidy_data_corrected)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>    Mouse                 BW          Test Week        Genotype        
+ Length:2424        Min.   :16.60   Min.   : 1.000   Length:2424       
+ Class :character   1st Qu.:20.07   1st Qu.: 3.000   Class :character  
+ Mode  :character   Median :22.55   Median : 6.000   Mode  :character  
+                    Mean   :22.24   Mean   : 6.378                     
+                    3rd Qu.:24.50   3rd Qu.: 9.000                     
+                    Max.   :26.20   Max.   :12.000                     
+                    NA's   :1800    NA's   :456                        
+     Sex             Time Point        Glucose Reading
+ Length:2424        Length:2424        Min.   :  5.0  
+ Class :character   Class :character   1st Qu.: 68.0  
+ Mode  :character   Mode  :character   Median :118.0  
+                                       Mean   :168.5  
+                                       3rd Qu.:172.0  
+                                       Max.   :750.0  
+                                       NA's   :1959   </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Removing Mouse and nan data values that were created during ChatGPT analysis</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_tidy_data_corrected <span class="sc">%&gt;%</span> <span class="fu">filter</span>(Mouse <span class="sc">!=</span> <span class="st">"Mouse"</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">filter</span>(Mouse <span class="sc">!=</span> <span class="st">"nan"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">filter</span>(<span class="sc">!</span>(<span class="fu">is.na</span>(BW) <span class="sc">&amp;</span> <span class="fu">is.na</span>(<span class="st">`</span><span class="at">Glucose Reading</span><span class="st">`</span>)))</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co">#IPGTT_data &lt;- IPGTT_data %&gt;% filter(!is.na(`Glucose Reading`))</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co">#IPGTT_data &lt;- IPGTT_data[!(is.na(IPGTT_data$BW) &amp; is.na(IPGTT_data$`Glucose Reading`)), ]</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="changing-variable-names-according-to-tidy-data-guidelines" class="level4">
+<h4 class="anchored" data-anchor-id="changing-variable-names-according-to-tidy-data-guidelines">Changing variable names according to Tidy Data guidelines</h4>
+<section id="saved-old-names-for-future-reference" class="level5">
+<h5 class="anchored" data-anchor-id="saved-old-names-for-future-reference"><strong>(Saved old names for future reference)</strong></h5>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>old_names <span class="ot">&lt;-</span> <span class="fu">names</span>(IPGTT_data)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>new_names <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">"mouse"</span>, <span class="st">"body_weight"</span>, <span class="st">"test_week"</span>, <span class="st">"genotype"</span>, <span class="st">"sex"</span>, <span class="st">"time_point"</span>, <span class="st">"glucose_reading"</span>)</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="fu">names</span>(IPGTT_data) <span class="ot">&lt;-</span> new_names</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="viewing-variable-types" class="level4">
+<h4 class="anchored" data-anchor-id="viewing-variable-types">Viewing variable types</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb12"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">str</span>(IPGTT_data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>tibble [624 × 7] (S3: tbl_df/tbl/data.frame)
+ $ mouse          : chr [1:624] "LP" "LP" "LP" "LP" ...
+ $ body_weight    : num [1:624] 21.5 23.8 24.6 22.8 25.4 24.8 25.3 25.5 25 25.8 ...
+ $ test_week      : num [1:624] 1 2 3 4 5 6 7 8 9 10 ...
+ $ genotype       : chr [1:624] "KO-NOD" "KO-NOD" "KO-NOD" "KO-NOD" ...
+ $ sex            : chr [1:624] "F" "F" "F" "F" ...
+ $ time_point     : chr [1:624] "0 min" "0 min" "0 min" "0 min" ...
+ $ glucose_reading: num [1:624] 114 114 133 96 158 155 155 161 137 252 ...</code></pre>
+</div>
+</div>
+</section>
+<section id="creating-unique-mouse-ids-depending-on-its-name-and-genotype" class="level4">
+<h4 class="anchored" data-anchor-id="creating-unique-mouse-ids-depending-on-its-name-and-genotype">Creating unique mouse ID’s depending on its name and genotype</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">mutate</span>(<span class="at">mouse_id =</span> <span class="fu">paste</span>(mouse, genotype, <span class="at">sep =</span> <span class="st">"-"</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="converting-time_point-from-char-to-numeric" class="level4">
+<h4 class="anchored" data-anchor-id="converting-time_point-from-char-to-numeric">Converting time_point from char to numeric</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(stringr)</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">mutate</span>(<span class="at">time_point =</span> <span class="fu">as.numeric</span>(<span class="fu">str_extract</span>(time_point, <span class="st">"</span><span class="sc">\\</span><span class="st">d+"</span>)))</span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a><span class="co">#IPGTT_data &lt;- IPGTT_data %&gt;% select(-time_point)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="factors" class="level3">
+<h3 class="anchored" data-anchor-id="factors">Factors</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># IPGTT_data$sex &lt;-  factor(IPGTT_data$sex, levels = c("Female", "Male"))</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="co"># IPGTT_data$genotype &lt;- factor(IPGTT_data$genotype, levels = c("WT-WT", "Het-NOD", "KO-NOD"))</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>IPGTT_data<span class="sc">$</span>sex <span class="ot">&lt;-</span>  <span class="fu">factor</span>(IPGTT_data<span class="sc">$</span>sex)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>IPGTT_data<span class="sc">$</span>genotype <span class="ot">&lt;-</span> <span class="fu">factor</span>(IPGTT_data<span class="sc">$</span>genotype)</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Checking to see if data type changed</span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a><span class="fu">str</span>(IPGTT_data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>tibble [624 × 8] (S3: tbl_df/tbl/data.frame)
+ $ mouse          : chr [1:624] "LP" "LP" "LP" "LP" ...
+ $ body_weight    : num [1:624] 21.5 23.8 24.6 22.8 25.4 24.8 25.3 25.5 25 25.8 ...
+ $ test_week      : num [1:624] 1 2 3 4 5 6 7 8 9 10 ...
+ $ genotype       : Factor w/ 3 levels "Het-NOD","KO-NOD",..: 2 2 2 2 2 2 2 2 2 2 ...
+ $ sex            : Factor w/ 1 level "F": 1 1 1 1 1 1 1 1 1 1 ...
+ $ time_point     : num [1:624] 0 0 0 0 0 0 0 0 0 0 ...
+ $ glucose_reading: num [1:624] 114 114 133 96 158 155 155 161 137 252 ...
+ $ mouse_id       : chr [1:624] "LP-KO-NOD" "LP-KO-NOD" "LP-KO-NOD" "LP-KO-NOD" ...</code></pre>
+</div>
+</div>
+<section id="relocating-columns-for-easier-readability" class="level4">
+<h4 class="anchored" data-anchor-id="relocating-columns-for-easier-readability">Relocating columns for easier readability</h4>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb18"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">relocate</span>(mouse_id, <span class="at">.before =</span> mouse)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">relocate</span>(body_weight, <span class="at">.before =</span> glucose_reading)</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">relocate</span>(genotype, <span class="at">.before =</span> test_week)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">relocate</span>(sex, <span class="at">.before =</span> test_week)</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">relocate</span>(body_weight, <span class="at">.before =</span> glucose_reading)</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>IPGTT_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">relocate</span>(time_point, <span class="at">.before =</span> body_weight)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co">#IPGTT trajectories overlaid with within-genotype medians</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(ggplot2)</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>okabe_ito_palette <span class="ot">&lt;-</span> <span class="fu">rep</span>(grDevices<span class="sc">::</span><span class="fu">palette.colors</span>(<span class="at">palette =</span> <span class="st">"Okabe-Ito"</span>))</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>IPGTT_fil <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(glucose_reading), test_week <span class="sc">%in%</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>)</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>median_data <span class="ot">&lt;-</span> IPGTT_data <span class="sc">%&gt;%</span> <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(glucose_reading), test_week <span class="sc">%in%</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">4</span>)  <span class="sc">%&gt;%</span> </span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(time_point, genotype, test_week) <span class="sc">%&gt;%</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">median_glucose_reading =</span> <span class="fu">median</span>(glucose_reading, <span class="at">na.rm =</span> <span class="cn">TRUE</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stderr">
+<pre><code>`summarise()` has grouped output by 'time_point', 'genotype'. You can override
+using the `.groups` argument.</code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">ggplot</span>(IPGTT_fil, <span class="fu">aes</span>(time_point, glucose_reading, <span class="at">color =</span> genotype, <span class="at">group =</span> mouse_id)) <span class="sc">+</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">alpha =</span> <span class="fl">0.3</span>) <span class="sc">+</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">data =</span> median_data, <span class="fu">aes</span>(<span class="at">x =</span> time_point, <span class="at">y =</span> median_glucose_reading, <span class="at">color =</span> genotype, <span class="at">group =</span> genotype)) <span class="sc">+</span> </span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>(<span class="sc">~</span> test_week,  <span class="at">ncol =</span> <span class="dv">4</span>) <span class="sc">+</span></span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_minimal</span>() <span class="sc">+</span></span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_continuous</span>(<span class="at">breaks=</span><span class="fu">seq</span>(<span class="dv">0</span>,<span class="dv">120</span>, <span class="at">by=</span><span class="dv">30</span>)) <span class="sc">+</span></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_color_manual</span>(<span class="at">values =</span> okabe_ito_palette) <span class="sc">+</span></span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">title =</span> <span class="st">"IPGTT trajectories overlaid with within-genotype medians"</span>, <span class="at">x=</span><span class="st">"Test time (min)"</span>, <span class="at">y =</span> <span class="st">"Blood glucose (mg/dL)"</span>,   <span class="at">subtitle =</span> <span class="st">"(First four weeks of data)"</span>) <span class="sc">+</span></span>
+<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(<span class="at">legend.position =</span> <span class="st">"bottom"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="index_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
 
 
+</section>
+</section>
+</section>
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">

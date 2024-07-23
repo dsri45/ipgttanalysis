@@ -96,6 +96,32 @@ IPGTT_data <- IPGTT_data %>%
 ### Visualizations
 
 ```{r}
+# Calculate average body weight and glucose reading by test_week and genotype
+mean_data <- IPGTT_data %>%
+  group_by(test_week, genotype) %>%
+  summarise(mean_body_weight = mean(body_weight, na.rm = TRUE))
+
+plot2 <-ggplot(mean_data, aes(x = test_week, y = mean_body_weight, color = genotype)) +
+  geom_point() +
+  geom_line(aes(x = test_week, y = mean_body_weight, color = genotype, group = genotype)) +
+  geom_line(data = IPGTT_data, aes(x = test_week, y = body_weight, color = genotype, group = mouse_id), alpha = 0.5)+
+  theme_minimal()+ scale_color_manual(values = okabe_ito_palette) +
+  labs(title = "Mean body weight over test weeks", x="Test Week", y = "Body Weight (g)",    subtitle = "(All 12 weeks of data)")+
+  theme(legend.position = "bottom")
+  
+  plotly_plot2 <- ggplotly(plot2, tooltip = c( "mouse_id", "test_week", "body_weight", "mean_body_weight")) %>%
+  config(displayModeBar = FALSE) %>% 
+  layout(legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.2))
+
+plotly_plot2
+
+
+```
+
+
+
+
+```{r}
 #IPGTT trajectories overlaid with within-genotype medians
 
 IPGTT_fil <- IPGTT_data %>% filter(!is.na(glucose_reading), test_week %in% 1:4)
@@ -114,6 +140,10 @@ plot1 <- ggplot(IPGTT_fil, aes(time_point, glucose_reading, color = genotype, gr
   labs(title = "IPGTT trajectories overlaid with within-genotype medians", x="Test time (min)", y = "Blood glucose (mg/dL)",    subtitle = "(First four weeks of data)") +
   theme(legend.position = "bottom", axis.text.x = element_text(angle = 90))
 
-ggplotly(plot1)
+plotly_plot1 <- ggplotly(plot1, tooltip = c( "mouse_id", "time_point", "glucose_reading", "median_glucose_reading")) %>%
+  config(displayModeBar = FALSE) %>%
+  layout(legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.2))
+
+plotly_plot1
 
 ```

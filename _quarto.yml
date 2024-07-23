@@ -3,7 +3,7 @@ project:
   output-dir: docs
 
 website:
-  title: "ipgttanalysis"
+  title: "IPGTT Analysis"
   navbar:
     left:
       - href: index.qmd

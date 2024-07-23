@@ -89,12 +89,8 @@ str(IPGTT_data)
 #### Relocating columns for easier readability
 
 ```{r}
-IPGTT_data <- IPGTT_data %>% relocate(mouse_id, .before = mouse)
-IPGTT_data <- IPGTT_data %>% relocate(body_weight, .before = glucose_reading)
-IPGTT_data <- IPGTT_data %>% relocate(genotype, .before = test_week)
-IPGTT_data <- IPGTT_data %>% relocate(sex, .before = test_week)
-IPGTT_data <- IPGTT_data %>% relocate(body_weight, .before = glucose_reading)
-IPGTT_data <- IPGTT_data %>% relocate(time_point, .before = body_weight)
+IPGTT_data <- IPGTT_data %>%
+  select(mouse_id, mouse, genotype, sex, test_week, time_point, body_weight, glucose_reading, everything())
 ```
 
 

@@ -90,7 +90,9 @@ IPGTT_data <- IPGTT_data %>%
   select(mouse_id, mouse, genotype, sex, test_week, time_point, body_weight, glucose_reading, everything())
 ```
 
+
 \
+
 
 
 ### Visualizations
@@ -114,11 +116,9 @@ plot2 <-ggplot(mean_data, aes(x = test_week, y = mean_body_weight, color = genot
   layout(legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.2))
 
 plotly_plot2
-
-
 ```
 
-
+\
 
 
 ```{r}

@@ -15,6 +15,9 @@ format:
     theme: sandstone
     css: styles.css
     toc: true
+    execute:
+      warning: false
+      message: false
 
 editor: visual
 

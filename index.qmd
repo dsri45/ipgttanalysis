@@ -1,5 +1,5 @@
 ---
-title: ""
+title: "IPGTT Data Cleaning and Analysis"
 ---
 
 
@@ -32,7 +32,7 @@ okabe_ito_palette <- c("#D55E00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#
 
 ### Cleaning
 
-#### Filtering Unnecessary Data:
+##### Filtering Unnecessary Data:
 
 ```{r}
 # Reading excel database
@@ -52,7 +52,7 @@ IPGTT_data <- IPGTT_data %>% filter(!(is.na(BW) & is.na(`Glucose Reading`)))
 
 ```
 
-#### Changing variable names according to Tidy Data guidelines
+##### Changing variable names according to Tidy Data guidelines
 
 ```{r}
 old_names <- names(IPGTT_data)
@@ -61,19 +61,19 @@ new_names <- c("mouse", "body_weight", "test_week", "genotype", "sex", "time_poi
 names(IPGTT_data) <- new_names
 ```
 
-#### Creating unique mouse ID's depending on its name and genotype
+##### Creating unique mouse ID's depending on its name and genotype
 
 ```{r}
 IPGTT_data <- IPGTT_data %>% mutate(mouse_id = paste(mouse, genotype, sep = "-"))
 ```
 
-#### Converting time_point from char to numeric
+##### Converting time_point from char to numeric
 
 ```{r}
 IPGTT_data <- IPGTT_data %>% mutate(time_point = as.numeric(str_extract(time_point, "\\d+")))
 ```
 
-#### Factors
+##### Factors
 
 ```{r}
 IPGTT_data$sex <-  factor(IPGTT_data$sex)
@@ -83,7 +83,7 @@ IPGTT_data$genotype <- factor(IPGTT_data$genotype)
 str(IPGTT_data)
 ```
 
-#### Relocating columns for easier readability
+##### Relocating columns for easier readability
 
 ```{r}
 IPGTT_data <- IPGTT_data %>%
@@ -92,13 +92,11 @@ IPGTT_data <- IPGTT_data %>%
 
 \
 
-\
 
 ### Visualizations
 
 ```{r}
 #IPGTT trajectories overlaid with within-genotype medians
-
 
 IPGTT_fil <- IPGTT_data %>% filter(!is.na(glucose_reading), test_week %in% 1:4)
 

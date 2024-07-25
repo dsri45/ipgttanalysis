@@ -149,3 +149,7 @@ plotly_plot1 <- ggplotly(plot1, tooltip = c( "mouse_id", "time_point", "glucose_
 plotly_plot1
 
 ```
+
+
+
+

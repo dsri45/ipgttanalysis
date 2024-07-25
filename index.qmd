@@ -15,8 +15,13 @@ library(ggplot2)
 library(plotly)
 library(readxl)
 library(stringr)
+library(purrr)
 
 okabe_ito_palette <- c("#D55E00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#E69F00", "#CC79A7", "#999999")
+
+
+# Define the color palette for the genotypes
+color_palette <- c("Het-NOD" = "#D55E00", "KO-NOD" = "#56B4E9", "WT-WT" = "#009E73")
 ```
 
 | Name            | Data Type | Description                                            | Unit of Measurement |
@@ -107,7 +112,7 @@ plot2 <-ggplot(mean_data, aes(x = test_week, y = mean_body_weight, color = genot
   geom_point() +
   geom_line(aes(x = test_week, y = mean_body_weight, color = genotype, group = genotype)) +
   geom_line(data = IPGTT_data, aes(x = test_week, y = body_weight, color = genotype, group = mouse_id), alpha = 0.5)+
-  theme_minimal()+ scale_color_manual(values = okabe_ito_palette) +
+  theme_minimal()+ scale_color_manual(values = color_palette) +
   labs(title = "Mean body weight over test weeks", x="Test Week", y = "Body Weight (g)",    subtitle = "(All 12 weeks of data)")+
   theme(legend.position = "bottom")+
   scale_x_continuous(breaks=seq(0,12, by=1)) 
@@ -138,7 +143,7 @@ plot1 <- ggplot(IPGTT_fil, aes(time_point, glucose_reading, color = genotype, gr
   facet_wrap(~ test_week,  ncol = 4) +
   theme_minimal() +
   scale_x_continuous(breaks=seq(0,120, by=30)) +
-  scale_color_manual(values = okabe_ito_palette) +
+  scale_color_manual(values = color_palette) +
   labs(title = "IPGTT trajectories overlaid with within-genotype medians", x="Test time (min)", y = "Blood glucose (mg/dL)",    subtitle = "(First four weeks of data)") +
   theme(legend.position = "bottom", axis.text.x = element_text(angle = 90))
 
@@ -147,6 +152,76 @@ plotly_plot1 <- ggplotly(plot1, tooltip = c( "mouse_id", "time_point", "glucose_
   layout(legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.2))
 
 plotly_plot1
+
+```
+
+\
+```{r}
+
+# Example usage
+weeks_list <- list(1:4, 5:8, 9:12)
+genotypes <- c("Het-NOD", "KO-NOD", "WT-WT")
+
+
+# Helper function to filter data for given weeks and genotypes
+filter_data <- function(data, weeks, genotypes) {
+  data %>%
+    filter(!is.na(glucose_reading), 
+           test_week %in% weeks, 
+           genotype %in% genotypes)
+}
+
+# Helper function to calculate medians for the filtered data
+calculate_medians <- function(data) {
+  data %>%
+    group_by(time_point, genotype, test_week) %>%
+    summarise(median_glucose_reading = median(glucose_reading, na.rm = TRUE), .groups = 'drop')
+}
+
+# Helper function to generate the plot
+generate_plot <- function(data, medians, weeks, genotypes, color_palette) {
+  plot <- ggplot(data, aes(time_point, glucose_reading, color = genotype, group = mouse_id)) +
+    geom_line(alpha = 0.3) +
+    geom_line(data = medians, aes(x = time_point, y = median_glucose_reading, color = genotype, group = genotype)) + 
+    facet_wrap(~ test_week, ncol = length(weeks)) +
+    theme_minimal() +
+    scale_x_continuous(breaks = seq(0, 120, by = 30)) +
+    scale_color_manual(values = color_palette) +
+    labs(title = "IPGTT trajectories overlaid with within-genotype medians",
+         x = "Test time (min)", y = "Blood glucose (mg/dL)",
+         subtitle = paste("Weeks:", paste(weeks, collapse = ", "), "| Genotypes:", paste(genotypes, collapse = ", "))) +
+    theme(legend.position = "bottom", axis.text.x = element_text(angle = 90))
+
+  ggplotly(plot, tooltip = c("mouse_id", "time_point", "glucose_reading", "median_glucose_reading")) %>%
+    config(displayModeBar = FALSE) %>%
+    layout(legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.2))
+}
+
+# Main function to iterate over weeks and genotypes using purrr
+create_plots <- function(data, week_combinations, genotypes, color_palette) {
+  genotype_combinations <- combn(genotypes, 2, simplify = FALSE)
+  
+  cross2(week_combinations, genotype_combinations) %>%
+    map(~{
+      weeks <- .x[[1]]
+      genotype_pair <- .x[[2]]
+      
+      filtered_data <- filter_data(data, weeks, genotype_pair)
+      median_data <- calculate_medians(filtered_data)
+      
+      generate_plot(filtered_data, median_data, weeks, genotype_pair, color_palette)
+    
+      
+    })
+}
+
+
+plots <- create_plots(IPGTT_data, weeks_list, genotypes, color_palette)
+
+# Display all plots
+for (i in seq_along(plots)) {
+  print(plots[[i]])
+}
 
 ```
 

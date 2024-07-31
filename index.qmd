@@ -336,13 +336,13 @@ contrast_df <- contrast_df %>%
   mutate(lower.CL = estimate - SE,
          upper.CL = estimate + SE)
 
-ggplot(contrast_df, aes(x = time_point, y = estimate, color = contrast, group = contrast)) +
-  geom_point() +
-  geom_errorbar(aes(ymin = estimate - SE, ymax = estimate + SE), width = 0.1) +
-  theme_minimal() +
-  labs(title = "Contrasts of Estimated Marginal Means",
-       x = "Time Point",
-       y = "Contrast Estimate")
+#ggplot(contrast_df, aes(x = time_point, y = estimate, color = contrast, group = contrast)) +
+#  geom_point() +
+ # geom_errorbar(aes(ymin = estimate - SE, ymax = estimate + SE), width = 0.1) +
+ # theme_minimal() +
+  #labs(title = "Contrasts of Estimated Marginal Means",
+  #     x = "Time Point",
+  #     y = "Contrast Estimate")
 
 ```
 
@@ -388,47 +388,33 @@ ggplot(contrast_df, aes(x = time_point, y = estimate, color = contrast, group = 
 ```
 
 ```{r}
-# Load necessary libraries
+
 library(lme4)
 library(emmeans)
 library(ggplot2)
 library(dplyr)
 library(tidyr)
 
-# Install missing packages if necessary
-# install.packages("pbkrtest")
-# install.packages("lmerTest")
 
-# Step 1: Load your data
-# Assuming your data is in a data frame called IPGTT_data
-# IPGTT_data <- read.csv("your_data_file.csv")  # Uncomment and modify this line to load your data
-
-# Step 2: Remove rows with missing values
 IPGTT_data_clean <- IPGTT_data %>% filter(test_week == 1) %>% na.omit() 
 
-# Convert time_point to a factor
+
 IPGTT_data_clean$time_point <- as.factor(IPGTT_data_clean$time_point)
 IPGTT_data_clean$test_week <- as.factor(IPGTT_data_clean$test_week)
 
-# Step 3: Fit the mixed model
 IPGTT_mixed_model <- lmer(glucose_reading ~ time_point * genotype + (1|mouse_id), data = IPGTT_data_clean)
 
-# Step 4: Calculate the estimated marginal means for each genotype
+
 emm <- emmeans(IPGTT_mixed_model, ~  genotype| time_point)
 
 broom.mixed::tidy(emm) 
 
-# Step 5: Calculate contrasts between genotype pairs for all test weeks
 contrast_results <- pairs(emm, interaction = "pairwise")
 
-# Convert contrast results to a data frame
+
 contrast_df <- as.data.frame(contrast_results)
 
-# Filter for week 1 in the contrasts
-#contrast_df_week1 <- contrast_df %>% filter(test_week == 1)
 
-
-# Step 7: Plot the contrasts for week 1
 ggplot(contrast_df, aes(x = time_point, y = estimate, color = genotype_pairwise)) +
   geom_line() +
   geom_point() +

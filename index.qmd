@@ -15,6 +15,7 @@ library(stringr)
 library(purrr)
 library(showtext)
 library(lme4)
+library(emmeans)
 
 okabe_ito_palette <- c( "#009E73","#D55E00", "#56B4E9", "#F0E442", "#0072B2", "#E69F00", "#CC79A7", "#999999")
 
@@ -265,8 +266,6 @@ ggplot(ipgtt_week_1, aes(time_point, glucose_reading, color = genotype))+
 
 
 
-
-
 ipgtt_week_1_lm <- IPGTT_data %>% filter(test_week == 1) %>% 
   group_by(time_point, genotype, mouse_id) %>%  lm(glucose_reading ~ time_point + genotype + 0, data = .)
 
@@ -281,6 +280,15 @@ ggplot(ipgtt_week_1_predicted_lm, aes(time_point, glucose_predict_lm, color = ge
 
 
 
+broom::tidy(ipgtt_week_1_lm)
+broom::glance(ipgtt_week_1_lm)
+
+summary(ipgtt_week_1_lm)
+
+IPGTT_data %>% filter(test_week == 1) %>% count(time_point, genotype)
+
+
+
 IPGTT_data_clean <- na.omit(IPGTT_data)
 
 
@@ -288,14 +296,150 @@ IPGTT_mixed_model <- lmer(glucose_reading ~ time_point +  test_week + genotype +
 ipgtt_predicted_mm <- IPGTT_data_clean %>%
   mutate(glucose_predict_mm = predict(IPGTT_mixed_model, data = IPGTT_data_clean))
 
+broom.mixed::tidy(IPGTT_mixed_model)
+broom.mixed::glance(IPGTT_mixed_model)
 
-ggplot(ipgtt_predicted_mm, aes(time_point, glucose_predict_mm, color = genotype)) +
-  geom_smooth(method = "loess", se = FALSE)+
+summary(IPGTT_mixed_model)$df
+
+ggplot(ipgtt_predicted_mm, aes(time_point, glucose_predict_mm, color = genotype, group = mouse_id)) +
+  geom_line()+
   geom_point(data = IPGTT_data_clean, aes(time_point, glucose_reading), alpha = 0.08) +
   theme_minimal() +
   scale_color_manual(values = color_palette)
 
 
+emm <- emmeans(IPGTT_mixed_model, ~ time_point | test_week | genotype)
+
+# Convert the emmeans results to a data frame for plotting
+emm_df <- as.data.frame(emm)
+
+View(emm_df)
+
+# Plot the estimated marginal means
+ggplot(emm_df, aes(x = time_point, y = emmean, color = genotype, group = genotype)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  scale_color_manual(values = color_palette) +
+  labs(title = "Estimated Marginal Means of Glucose Readings",
+       x = "Time Point",
+       y = "Estimated Marginal Mean Glucose Reading")
+
+# Calculate contrasts
+contrast_emm <- contrast(emm, method = "pairwise", adjust = "tukey")
+
+# Convert contrasts to a data frame for plotting
+contrast_df <- as.data.frame(contrast_emm)
+
+# Extract the necessary values for the error bars
+contrast_df <- contrast_df %>%
+  mutate(lower.CL = estimate - SE,
+         upper.CL = estimate + SE)
+
+ggplot(contrast_df, aes(x = time_point, y = estimate, color = contrast, group = contrast)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = estimate - SE, ymax = estimate + SE), width = 0.1) +
+  theme_minimal() +
+  labs(title = "Contrasts of Estimated Marginal Means",
+       x = "Time Point",
+       y = "Contrast Estimate")
+
+```
+
+
+
+```{r}
+# Remove rows with missing values for model fitting
+IPGTT_data_clean <- na.omit(IPGTT_data)
+
+# Step 1: Fit the mixed model on the original data including test_week
+IPGTT_mixed_model <- lmer(glucose_reading ~ time_point + test_week + genotype + (1 | mouse_id), data = IPGTT_data_clean)
+
+# Step 2: Calculate the estimated marginal means for each genotype by test_week
+emm <- emmeans(IPGTT_mixed_model, ~ genotype | test_week | time_point)
+
+# Step 3: Calculate contrasts between genotype pairs for each test week
+contrast_results <- contrast(emm, interaction = "pairwise")
+
+# Convert the contrasts results to a data frame
+contrast_df <- as.data.frame(contrast_results)
+
+# Print the contrast results to check
+print(contrast_df)
+
+View(contrast_df)
+
+# Step 4: Prepare for plotting the differences between genotype pairs
+contrast_df <- contrast_df %>%
+  mutate(contrast = rownames(contrast_df)) # Create a new column for contrasts
+
+# Plot the contrasts
+ggplot(contrast_df, aes(x = time_point, y = estimate, color = contrast, group = contrast)) +
+  geom_line() +
+  geom_point() +
+  geom_errorbar(aes(ymin = estimate - SE, ymax = estimate + SE), width = 0.1) +
+  theme_minimal() +
+  scale_color_manual(values = color_palette) +
+  labs(title = "Differences in Estimated Marginal Means Between Genotypes by Test Week",
+       x = "Time Point",
+       y = "Contrast Estimate") +
+  facet_wrap(~ test_week)  # Facet by test_week
+
+```
+
+```{r}
+# Load necessary libraries
+library(lme4)
+library(emmeans)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+# Install missing packages if necessary
+# install.packages("pbkrtest")
+# install.packages("lmerTest")
+
+# Step 1: Load your data
+# Assuming your data is in a data frame called IPGTT_data
+# IPGTT_data <- read.csv("your_data_file.csv")  # Uncomment and modify this line to load your data
+
+# Step 2: Remove rows with missing values
+IPGTT_data_clean <- IPGTT_data %>% filter(test_week == 1) %>% na.omit() 
+
+# Convert time_point to a factor
+IPGTT_data_clean$time_point <- as.factor(IPGTT_data_clean$time_point)
+IPGTT_data_clean$test_week <- as.factor(IPGTT_data_clean$test_week)
+
+# Step 3: Fit the mixed model
+IPGTT_mixed_model <- lmer(glucose_reading ~ time_point * genotype + (1|mouse_id), data = IPGTT_data_clean)
+
+# Step 4: Calculate the estimated marginal means for each genotype
+emm <- emmeans(IPGTT_mixed_model, ~  genotype| time_point)
+
+broom.mixed::tidy(emm) 
+
+# Step 5: Calculate contrasts between genotype pairs for all test weeks
+contrast_results <- pairs(emm, interaction = "pairwise")
+
+# Convert contrast results to a data frame
+contrast_df <- as.data.frame(contrast_results)
+
+# Filter for week 1 in the contrasts
+#contrast_df_week1 <- contrast_df %>% filter(test_week == 1)
+
+
+# Step 7: Plot the contrasts for week 1
+ggplot(contrast_df, aes(x = time_point, y = estimate, color = genotype_pairwise)) +
+  geom_line() +
+  geom_point() +
+  geom_errorbar(aes(ymin = estimate - SE, ymax = estimate + SE), width = 0.1) +
+  theme_minimal() +
+  labs(title = "Differences in Estimated Marginal Means Between Genotypes (Week 1)",
+       x = "Time Point",
+       y = "Contrast Estimate")
+
+
 
 
 ```
+

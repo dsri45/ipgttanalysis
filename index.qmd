@@ -2,10 +2,7 @@
 title: "IPGTT Data Cleaning and Analysis"
 ---
 
-
-
 ### Data Dictionary
-
 
 ```{r setup, include=FALSE}
 
@@ -17,8 +14,9 @@ library(readxl)
 library(stringr)
 library(purrr)
 library(showtext)
+library(lme4)
 
-okabe_ito_palette <- c("#D55E00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#E69F00", "#CC79A7", "#999999")
+okabe_ito_palette <- c( "#009E73","#D55E00", "#56B4E9", "#F0E442", "#0072B2", "#E69F00", "#CC79A7", "#999999")
 
 
 # Define the color palette for the genotypes
@@ -31,7 +29,7 @@ showtext_auto()  # Automatically use showtext for text rendering
 ```
 
 | Name            | Data Type | Description                                            | Unit of Measurement |
-|------------------|------------------|-------------------|------------------|
+|-------------|-------------|--------------------------------|-------------|
 | mouse_id        | chr       | Unique identifier for each mouse                       | *NA*                |
 | mouse           | chr       | Identifier or name assigned to each mouse              | *NA*                |
 | genotype        | factor    | Genetic constitution of each mouse (e.g., WT, Het, KO) | *NA*                |
@@ -61,6 +59,8 @@ IPGTT_data <- IPGTT_data %>% filter(Mouse != "nan")
 # Removing all rows where there are no body weight AND glucose readings
 IPGTT_data <- IPGTT_data %>% filter(!(is.na(BW) & is.na(`Glucose Reading`)))
 
+
+
 ```
 
 ##### Changing variable names according to Tidy Data guidelines
@@ -88,7 +88,9 @@ IPGTT_data <- IPGTT_data %>% mutate(time_point = as.numeric(str_extract(time_poi
 
 ```{r}
 IPGTT_data$sex <-  factor(IPGTT_data$sex)
-IPGTT_data$genotype <- factor(IPGTT_data$genotype)
+IPGTT_data$genotype <- factor(IPGTT_data$genotype, order = TRUE,levels = c("WT-WT", "Het-NOD", "KO-NOD"))
+
+
 
 # Checking to see if data type changed
 str(IPGTT_data)
@@ -101,10 +103,7 @@ IPGTT_data <- IPGTT_data %>%
   select(mouse_id, mouse, genotype, sex, test_week, time_point, body_weight, glucose_reading, everything())
 ```
 
-
 \
-
-
 
 ### Visualizations
 
@@ -132,7 +131,6 @@ plotly_plot2
 ```
 
 \
-
 
 ```{r}
 #IPGTT trajectories overlaid with within-genotype medians
@@ -162,6 +160,7 @@ plotly_plot1
 ```
 
 \
+
 ```{r}
 
 # Example usage
@@ -253,6 +252,50 @@ for(plot in plots){
 
 ```
 
+```{r}
+
+ipgtt_week_1 <- IPGTT_data %>% filter(test_week == 1)
+
+
+ggplot(ipgtt_week_1, aes(time_point, glucose_reading, color = genotype))+
+  geom_point(alpha = 0.1)+
+  geom_smooth(method = "lm", se= FALSE) +
+  facet_wrap(~genotype) +
+  scale_color_manual(values = color_palette)
 
 
 
+
+
+ipgtt_week_1_lm <- IPGTT_data %>% filter(test_week == 1) %>% 
+  group_by(time_point, genotype, mouse_id) %>%  lm(glucose_reading ~ time_point + genotype + 0, data = .)
+
+ipgtt_week_1_predicted_lm <- IPGTT_data %>% mutate(glucose_predict_lm = predict(ipgtt_week_1_lm, IPGTT_data))
+
+ggplot(ipgtt_week_1_predicted_lm, aes(time_point, glucose_predict_lm, color = genotype)) +
+  geom_line() +
+  geom_point(data = IPGTT_data, aes(time_point, glucose_reading), alpha = 0.08) +
+  theme_minimal() +
+  scale_color_manual(values = color_palette)
+
+
+
+
+IPGTT_data_clean <- na.omit(IPGTT_data)
+
+
+IPGTT_mixed_model <- lmer(glucose_reading ~ time_point +  test_week + genotype + (1|mouse_id), data = IPGTT_data_clean)
+ipgtt_predicted_mm <- IPGTT_data_clean %>%
+  mutate(glucose_predict_mm = predict(IPGTT_mixed_model, data = IPGTT_data_clean))
+
+
+ggplot(ipgtt_predicted_mm, aes(time_point, glucose_predict_mm, color = genotype)) +
+  geom_smooth(method = "loess", se = FALSE)+
+  geom_point(data = IPGTT_data_clean, aes(time_point, glucose_reading), alpha = 0.08) +
+  theme_minimal() +
+  scale_color_manual(values = color_palette)
+
+
+
+
+```

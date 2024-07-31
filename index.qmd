@@ -415,18 +415,18 @@ contrast_results <- pairs(emm, interaction = "pairwise")
 contrast_df <- as.data.frame(contrast_results)
 
 
-ggplot(contrast_df, aes(x = time_point, y = estimate, color = genotype_pairwise)) +
+b <- ggplot(contrast_df, aes(x = time_point, y = estimate, color = genotype_pairwise)) +
   geom_line() +
   geom_point() +
   geom_errorbar(aes(ymin = estimate - SE, ymax = estimate + SE), width = 0.1) +
   theme_minimal() +
-  labs(title = "Differences in Estimated Marginal Means Between Genotypes (Week 1)",
+  labs(title = "Differences in Means Between Genotypes (Week 1)",
        x = "Time Point",
-       y = "Contrast Estimate")+
+       y = "Pairwise Difference")+
     facet_wrap(~ genotype_pairwise)+
   theme(legend.position = "bottom", axis.text.x = element_text(angle = 90))
 
-
+ggplotly(b)
 
 ```
 ```{r}
@@ -452,16 +452,18 @@ contrast_results <- pairs(emm, interaction = "pairwise")
 contrast_df <- as.data.frame(contrast_results)
 
 
-ggplot(contrast_df, aes(x = time_point, y = estimate, color = genotype_pairwise)) +
+c<- ggplot(contrast_df, aes(x = time_point, y = estimate, color = genotype_pairwise)) +
   geom_line() +
   geom_point() +
   geom_errorbar(aes(ymin = estimate - SE, ymax = estimate + SE), width = 0.1) +
   theme_minimal() +
-  labs(title = "Differences in Estimated Marginal Means Between Genotypes (Week 1)",
+  labs(title = "Differences in Means Between Genotypes (Week 1)",
        x = "Time Point",
-       y = "Contrast Estimate")+
+       y = "Pairwise Difference")+
   facet_wrap(~test_week)+
    theme(legend.position = "bottom", axis.text.x = element_text(angle = 90))
+
+ggplotly(c)
 
 ```
 

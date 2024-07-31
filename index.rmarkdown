@@ -2,7 +2,9 @@
 title: "IPGTT Data Cleaning and Analysis"
 ---
 
+
 ### Data Dictionary
+
 
 ```{r setup, include=FALSE}
 
@@ -29,6 +31,7 @@ showtext_auto()  # Automatically use showtext for text rendering
 
 ```
 
+
 | Name            | Data Type | Description                                            | Unit of Measurement |
 |-------------|-------------|--------------------------------|-------------|
 | mouse_id        | chr       | Unique identifier for each mouse                       | *NA*                |
@@ -43,6 +46,7 @@ showtext_auto()  # Automatically use showtext for text rendering
 ### Cleaning
 
 ##### Filtering Unnecessary Data:
+
 
 ```{r}
 # Reading excel database
@@ -64,7 +68,9 @@ IPGTT_data <- IPGTT_data %>% filter(!(is.na(BW) & is.na(`Glucose Reading`)))
 
 ```
 
+
 ##### Changing variable names according to Tidy Data guidelines
+
 
 ```{r}
 old_names <- names(IPGTT_data)
@@ -73,19 +79,25 @@ new_names <- c("mouse", "body_weight", "test_week", "genotype", "sex", "time_poi
 names(IPGTT_data) <- new_names
 ```
 
+
 ##### Creating unique mouse ID's depending on its name and genotype
+
 
 ```{r}
 IPGTT_data <- IPGTT_data %>% mutate(mouse_id = paste(mouse, genotype, sep = "-"))
 ```
 
+
 ##### Converting time_point from char to numeric
+
 
 ```{r}
 IPGTT_data <- IPGTT_data %>% mutate(time_point = as.numeric(str_extract(time_point, "\\d+")))
 ```
 
+
 ##### Factors
+
 
 ```{r}
 IPGTT_data$sex <-  factor(IPGTT_data$sex)
@@ -97,16 +109,20 @@ IPGTT_data$genotype <- factor(IPGTT_data$genotype, order = TRUE,levels = c("WT-W
 str(IPGTT_data)
 ```
 
+
 ##### Relocating columns for easier readability
+
 
 ```{r}
 IPGTT_data <- IPGTT_data %>%
   select(mouse_id, mouse, genotype, sex, test_week, time_point, body_weight, glucose_reading, everything())
 ```
 
+
 \
 
 ### Visualizations
+
 
 ```{r}
 # Calculate average body weight and glucose reading by test_week and genotype
@@ -131,7 +147,9 @@ plot2 <-ggplot(mean_data, aes(x = test_week, y = mean_body_weight, color = genot
 plotly_plot2
 ```
 
+
 \
+
 
 ```{r}
 #IPGTT trajectories overlaid with within-genotype medians
@@ -160,7 +178,9 @@ plotly_plot1
 
 ```
 
+
 \
+
 
 ```{r}
 
@@ -346,8 +366,6 @@ contrast_df <- contrast_df %>%
 
 ```
 
-
-
 ```{r}
 # Remove rows with missing values for model fitting
 IPGTT_data_clean <- na.omit(IPGTT_data)
@@ -429,6 +447,7 @@ ggplot(contrast_df, aes(x = time_point, y = estimate, color = genotype_pairwise)
 
 
 ```
+
 ```{r}
 
 

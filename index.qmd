@@ -448,7 +448,6 @@ broom.mixed::tidy(emm)
 
 contrast_results <- pairs(emm, interaction = "pairwise")
 
-
 contrast_df <- as.data.frame(contrast_results)
 
 
@@ -464,6 +463,310 @@ c<- ggplot(contrast_df, aes(x = time_point, y = estimate, color = genotype_pairw
    theme(legend.position = "bottom", axis.text.x = element_text(angle = 90))
 
 ggplotly(c)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# FULL DATASET
+
+```{r}
+
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(here)
+
+file_path <- here("Glucose Tracking Results.xlsx")
+sheet_names <- excel_sheets(file_path)
+sheet_names <- excel_sheets(file_path)
+group_sheets <- sheet_names[grepl("Group (5|6|7|8|9|10|11)", sheet_names)]
+print(group_sheets)
+
+# Initialize a list to store cleaned data
+cleaned_data_list <- list()
+
+for (sheet in group_sheets) {
+    data <- read_excel(file_path, sheet = sheet)
+    
+    # Print the first few rows of the dataframe to check the data
+    print(head(data))
+    
+    # Convert the data from wide to long format
+    id_col <- colnames(data)[1]
+    measurement_cols <- colnames(data)[-1]
+    
+    long_data <- data %>%
+      pivot_longer(cols = all_of(measurement_cols), 
+                   names_to = "time_point", 
+                   values_to = "glucose_level")
+    
+    # Perform data cleaning operations
+    cleaned_data <- long_data %>%
+      mutate(across(where(is.character), str_trim)) %>%
+      mutate(time_point = str_replace_all(time_point, "[^0-9a-zA-Z]", "")) %>%
+      mutate(extracted_info = str_extract(time_point, "\\d+"))
+    
+    # Add cleaned data to the list
+    cleaned_data_list[[sheet]] <- cleaned_data
+    
+    # Print cleaned data to check the results
+    print(head(cleaned_data))
+}
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)  # Ensure this library is loaded for string functions
+library(here)
+
+file_path <- here("Glucose Tracking Results.xlsx")
+sheet_names <- excel_sheets(file_path)
+group_sheets <- sheet_names[grepl("Group", sheet_names)]
+print(group_sheets)
+
+first_group_sheet <- group_sheets[6]
+data <- read_excel(file_path, sheet = first_group_sheet)
+
+data <- data %>%
+  rename_with(~ str_replace_all(str_to_lower(.), " ", "_"))
+
+data <- data %>%
+  mutate(across(starts_with("1"):starts_with("20"), as.numeric))
+  
+  
+  # Assuming your data frame is named 'data'
+long_data <- data %>%
+  pivot_longer(
+   cols = c(`1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, `10`, `11`, `12`, `13`, `14`, `15`, `16`, `17`, `18`, `19`, `20`),
+   names_to = "test_week",
+   values_to = "body_weight"
+)
+
+data %>% colnames()
+
+long_data <- long_data %>%
+  pivot_longer(
+    cols = matches("^\\d{1,2}\\.\\d{1,2}(\\.\\d{2})?$"),
+    names_to = "date",
+    values_to = "glucose_reading"
+  )
+
+long_data <- long_data %>%
+  pivot_longer(
+    cols = date,
+    names_to = "test_weeks",
+    values_to = "days"
+  )
+
+
+```
+
+long_df <- data %>%
+  pivot_longer(
+    cols = -c(mouse_id, sex, genotype, dob, first_test_week), # Keep these columns
+    names_to = c("measurement_type", "test_week"), # Specify the names
+    names_pattern = "^(\\w+)_(\\d+)$" # Adjust regex for measurement and week
+  ) %>%
+  mutate(
+    # Assign appropriate labels for the glucose readings and body weight
+    glucose_reading = if_else(measurement_type == "glucose", value, NA_real_),
+    body_weight = if_else(measurement_type == "body_weight", value, NA_real_)
+  ) %>%
+  select(mouse_id, sex, genotype, dob, first_test_week, test_week, glucose_reading, body_weight)
+  
+  
+  
+  
+  
+  
+  
+  
+  %>% mutate(
+    date = as.Date(date, format = "%m.%d") # Adjust format as needed
+  ) %>%
+  # Create a combined column for test_week and date
+  mutate(combined = paste(test_week, date, sep = "_")) %>%
+  # Select and arrange columns as needed
+  select(mouse_id, sex, genotype, dob, first_test_week, test_week, body_weight, date, combined, glucose_reading)
+  
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(here)
+
+file_path <- here("Glucose Tracking Results.xlsx")
+sheet_names <- excel_sheets(file_path)
+group_sheets <- sheet_names[grepl("Group", sheet_names)]
+print(group_sheets)
+
+first_group_sheet <- group_sheets[6]
+data <- read_excel(file_path, sheet = first_group_sheet)
+
+data <- data %>%
+  rename_with(~ str_replace_all(str_to_lower(.), " ", "_"))
+
+# Convert relevant columns to numeric, handling non-numeric entries
+data <- data %>%
+  mutate(across(matches("^\\d{1,2}$|^1[0-9]$|^20$"), as.numeric)) %>%
+  mutate(across(matches("^\\d{1,2}\\.\\d{1,2}(\\.\\d{2})?$"), ~ as.numeric(.)))
+
+# Check column types
+str(data)
+
+# Pivot longer for body weights
+long_body_data <- data %>%
+  pivot_longer(
+    cols = matches("^[1-9]$|^1[0-9]$|^20$"),  # Match columns for body weights
+    names_to = "test_week",
+    values_to = "body_weight"
+  )
+
+# Pivot longer for glucose readings, ensuring the test week is retained
+long_glucose_data <- data %>%
+  pivot_longer(
+    cols = matches("^\\d{1,2}\\.\\d{1,2}(\\.\\d{2})?$"),
+    names_to = "date",
+    values_to = "glucose_reading"
+  ) %>%
+  mutate(test_week = case_when(
+    date == "8.11" ~ "1",
+    date == "8.16" ~ "2",
+    date == "8.31.23" ~ "3",
+    date == "9.7.23" ~ "4",
+    date == "9.14.23" ~ "5",
+    date == "9.20.23" ~ "6",
+    date == "9.27.23" ~ "7",
+    date == "10.3.23" ~ "8",
+    date == "10.10.23" ~ "9",
+    date == "10.17.23" ~ "10",
+    date == "10.24.23" ~ "11",
+    date == "10.31.23" ~ "12",
+    date == "11.7.23" ~ "13",
+    date == "11.14.23" ~ "14",
+    date == "11.21.23" ~ "15",
+    date == "11.27.23" ~ "16",
+    date == "12.4.23" ~ "17",
+    date == "12.12.23" ~ "18",
+    date == "12.18.23" ~ "19",
+    date == "12.27.23" ~ "20"
+  ))
+
+# Ensure both datasets have the same joining columns
+long_body_data <- long_body_data %>%
+  select(mouse_id, sex, genotype, dob, first_test_week, test_week, body_weight)
+
+long_glucose_data <- long_glucose_data %>%
+  select(mouse_id, test_week, glucose_reading)
+
+# Merge body weight and glucose reading data
+combined_data <- long_body_data %>%
+  left_join(long_glucose_data, by = c("mouse_id", "test_week"))
+
+# Final structure: retain all columns
+combined_data <- combined_data %>%
+  select(mouse_id, sex, genotype, dob, first_test_week, test_week, glucose_reading, body_weight)
+
+# View the result
+head(combined_data)
+
+
+
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(here)
+
+# Load the Excel file and identify sheets
+file_path <- here("Glucose Tracking Results.xlsx")
+sheet_names <- excel_sheets(file_path)
+group_sheets <- sheet_names[grepl("Group", sheet_names)]
+print(group_sheets)
+
+# Read the specified sheet
+first_group_sheet <- group_sheets[7]
+data <- read_excel(file_path, sheet = first_group_sheet)
+
+# Rename columns to lower case with underscores
+data <- data %>%
+  rename_with(~ str_replace_all(str_to_lower(.), " ", "_"))
+
+# Convert relevant columns to numeric, capturing all positive integers
+data <- data %>%
+  mutate(across(matches("^[0-9]+$"), as.numeric)) %>%  # Capture all positive integers
+  mutate(across(matches("^\\d{1,2}\\.\\d{1,2}(\\.\\d{2})?$"), ~ as.numeric(.)))
+
+# Check column names to identify glucose and body weight columns
+column_names <- names(data)
+glucose_cols <- column_names[grepl("^\\d{1,2}\\.\\d{1,2}(\\.\\d{2})?$", column_names)]
+body_weight_cols <- column_names[grepl("^[0-9]+$", column_names)]  # Dynamic match for body weight columns
+
+# Generate a mapping of test weeks dynamically based on their positions
+test_weeks <- seq_along(glucose_cols)  # Create a sequence for weeks
+
+# Create a dataframe for mapping
+date_to_week <- data.frame(
+  date = glucose_cols,
+  test_week = as.character(test_weeks)
+)
+
+# Pivot longer for glucose readings
+long_glucose_data <- data %>%
+  pivot_longer(
+    cols = all_of(glucose_cols),
+    names_to = "date",
+    values_to = "glucose_reading"
+  ) %>%
+  left_join(date_to_week, by = "date")  # Join to add test_week dynamically
+
+# Pivot longer for body weights
+long_body_data <- data %>%
+  pivot_longer(
+    cols = all_of(body_weight_cols),
+    names_to = "test_week",
+    values_to = "body_weight"
+  ) %>%
+  select(mouse_id, sex, genotype, dob, first_test_week, test_week, body_weight)
+
+# Ensure test_week in long_glucose_data is character for proper join
+long_glucose_data <- long_glucose_data %>%
+  select(mouse_id, test_week, glucose_reading) %>%
+  mutate(test_week = as.character(test_week))
+
+# Merge body weight and glucose reading data
+combined_data <- long_body_data %>%
+  left_join(long_glucose_data, by = c("mouse_id", "test_week"))
+
+# Final structure: retain all columns
+combined_data <- combined_data %>%
+  select(mouse_id, sex, genotype, dob, first_test_week, test_week, glucose_reading, body_weight)
+
+# View the result
+head(combined_data)
+
 
 ```
 

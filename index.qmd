@@ -1,5 +1,7 @@
 ---
 title: "IPGTT Data Cleaning and Analysis"
+editor_options: 
+  chunk_output_type: inline
 ---
 
 ### Data Dictionary
@@ -153,7 +155,6 @@ plot1 <- ggplot(IPGTT_fil, aes(time_point, glucose_reading, color = genotype, gr
   theme(legend.position = "bottom", axis.text.x = element_text(angle = 90))
 
 plotly_plot1 <- ggplotly(plot1, tooltip = c( "mouse_id", "time_point", "glucose_reading", "median_glucose_reading")) %>%
-  config(displayModeBar = FALSE) %>%
   layout(legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.2))
 
 plotly_plot1
@@ -213,12 +214,10 @@ generate_plot <- function(data, medians, weeks, genotypes, color_palette) {
     ) +
     theme(text = element_text(family = "Source"), legend.position = "none", axis.text.x = element_text(angle = 90))
 
- ggplotly(plot, tooltip = c("mouse_id", "time_point", "glucose_reading", "median_glucose_reading")) %>%
-    config(displayModeBar = FALSE) %>%
+ ggplotly(plot, tooltip = c("mouse_id", "time_point", "glucose_reading", "median_glucose_reading"))  %>%
     layout(title = list(text = colored_title, font = list(size = 15), x = 0), 
-           legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.2),
-            plot_bgcolor = "ivory",  # Set the plot background color in plotly
-            paper_bgcolor = "ivory"  # Set the paper background color in plotly
+           legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.2)
+           
            )
   
 }
@@ -241,6 +240,10 @@ create_plots <- function(data, week_combinations, genotypes, color_palette) {
     })
 }
 
+
+
+
+
 plots <- create_plots(IPGTT_data, weeks_list, genotypes, color_palette)
 
 
@@ -249,12 +252,9 @@ plots <- create_plots(IPGTT_data, weeks_list, genotypes, color_palette)
 for(plot in plots){
   print(plot)
 }
-
-
 ```
 
 ```{r}
-
 ipgtt_week_1 <- IPGTT_data %>% filter(test_week == 1)
 
 
@@ -346,8 +346,6 @@ contrast_df <- contrast_df %>%
 
 ```
 
-
-
 ```{r}
 
 library(lme4)
@@ -390,6 +388,7 @@ b <- ggplot(contrast_df, aes(x = time_point, y = estimate, color = genotype_pair
 ggplotly(b)
 
 ```
+
 ```{r}
 
 
@@ -427,97 +426,1569 @@ ggplotly(c)
 
 ```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # FULL DATASET
+
 ```{r}
 library(readxl)
 library(dplyr)
 library(tidyr)
 library(stringr)
 library(here)
+library(lubridate)
 
 # Load the Excel file and identify sheets
 file_path <- here("Glucose Tracking Results.xlsx")
 sheet_names <- excel_sheets(file_path)
 group_sheets <- sheet_names[grepl("Group", sheet_names)]
-print(group_sheets)
+selected_sheets <- group_sheets[5:10]  # Sheets 6-12
 
-# Read the specified sheet
-first_group_sheet <- group_sheets[7]
-data <- read_excel(file_path, sheet = first_group_sheet)
+# Combine into single sheet
+process_sheet <- function(sheet, sheet_index) {
+  data <- read_excel(file_path, sheet = sheet)
+  
+  # Rename columns to lower case with underscores
+  data <- data %>%
+    rename_with(~ str_replace_all(str_to_lower(.), " ", "_"))
+  
+    data <- data %>%
+    mutate(across(everything(), as.character))
+  
+  # Replace "HI" with 750 across all columns
+  data <- data %>%
+    mutate(across(everything(), ~ ifelse(. == "HI", "750", .)))
+  
+  # Convert relevant columns to numeric
+  data <- data %>%
+    mutate(across(matches("^[0-9]+$"), as.numeric)) %>%
+    mutate(across(matches("^\\d{1,2}\\.\\d{1,2}(\\.\\d{2})?$"), ~ as.numeric(.)))
+  
+  # Ensure mouse_id is character and append sheet index
+  data <- data %>%
+    mutate(mouse_id = paste0(as.character(mouse_id), "_", sheet_index))
+  
+  # Traverse to identify glucose and body weight columns
+  column_names <- names(data)
+  glucose_cols <- column_names[grepl("^\\d{1,2}\\.\\d{1,2}(\\.\\d{2})?$", column_names)]
+  body_weight_cols <- column_names[grepl("^[0-9]+$", column_names)]
+  
+  # Generate mapping of test weeks
+  test_weeks <- seq_along(glucose_cols)
+  date_to_week <- data.frame(
+    date = glucose_cols,
+    test_week = as.character(test_weeks)
+  )
+  
+  # Pivot longer for glucose readings
+  long_glucose_data <- data %>%
+    pivot_longer(
+      cols = all_of(glucose_cols),
+      names_to = "date",
+      values_to = "glucose_reading"
+    ) %>%
+    left_join(date_to_week, by = "date") %>%
+    select(mouse_id, date, test_week, glucose_reading) %>%
+    mutate(test_week = as.character(test_week))
+  
+  # Pivot longer for body weights
+  long_body_data <- data %>%
+    pivot_longer(
+      cols = all_of(body_weight_cols),
+      names_to = "test_week",
+      values_to = "body_weight"
+    ) %>%
+    select(mouse_id, sex, genotype, dob, first_test_week, test_week, body_weight)
+  
+  # Merge body weight and glucose reading data sets
+  combined_data <- long_body_data %>%
+    left_join(long_glucose_data, by = c("mouse_id", "test_week"))
+  
+  combined_data
+}
 
-# Rename columns to lower case with underscores
-data <- data %>%
-  rename_with(~ str_replace_all(str_to_lower(.), " ", "_"))
-
-# Convert relevant columns to numeric, capturing all positive integers
-data <- data %>%
-  mutate(across(matches("^[0-9]+$"), as.numeric)) %>%  # Capture all positive integers
-  mutate(across(matches("^\\d{1,2}\\.\\d{1,2}(\\.\\d{2})?$"), ~ as.numeric(.)))
-
-# Check column names to identify glucose and body weight columns
-column_names <- names(data)
-glucose_cols <- column_names[grepl("^\\d{1,2}\\.\\d{1,2}(\\.\\d{2})?$", column_names)]
-body_weight_cols <- column_names[grepl("^[0-9]+$", column_names)]  # Dynamic match for body weight columns
-
-# Generate a mapping of test weeks dynamically based on their positions
-test_weeks <- seq_along(glucose_cols)  # Create a sequence for weeks
-
-# Create a dataframe for mapping
-date_to_week <- data.frame(
-  date = glucose_cols,
-  test_week = as.character(test_weeks)
-)
-
-# Pivot longer for glucose readings
-long_glucose_data <- data %>%
-  pivot_longer(
-    cols = all_of(glucose_cols),
-    names_to = "date",
-    values_to = "glucose_reading"
-  ) %>%
-  left_join(date_to_week, by = "date")  # Join to add test_week dynamically
-
-# Pivot longer for body weights
-long_body_data <- data %>%
-  pivot_longer(
-    cols = all_of(body_weight_cols),
-    names_to = "test_week",
-    values_to = "body_weight"
-  ) %>%
-  select(mouse_id, sex, genotype, dob, first_test_week, test_week, body_weight)
-
-# Ensure test_week in long_glucose_data is character for proper join
-long_glucose_data <- long_glucose_data %>%
-  select(mouse_id, test_week, glucose_reading) %>%
-  mutate(test_week = as.character(test_week))
-
-# Merge body weight and glucose reading data
-combined_data <- long_body_data %>%
-  left_join(long_glucose_data, by = c("mouse_id", "test_week"))
+# Process each selected sheet and combine the results
+all_data <- lapply(seq_along(selected_sheets), function(i) {
+  process_sheet(selected_sheets[i], i + 4)
+}) %>%
+  bind_rows()
 
 # Final structure: retain all columns
-combined_data <- combined_data %>%
-  select(mouse_id, sex, genotype, dob, first_test_week, test_week, glucose_reading, body_weight)
+final_data <- all_data %>%
+  select(mouse_id, sex, genotype, dob, first_test_week, date, test_week, glucose_reading, body_weight)
 
 # View the result
-head(combined_data)
+head(final_data)
+
+# Processing dates
+final_data <- final_data %>%
+  separate(col = date, into = c("month", "day", "year"), sep = "\\.", remove = FALSE) %>%
+  mutate(year = str_replace_na(year, "23")) %>%
+  unite(col = "test_date", c("month", "day", "year"), sep = "-", remove = TRUE) %>%
+  mutate(test_date = mdy(test_date)) %>%
+  mutate(test_date = as.character(test_date)) %>%
+  select(-date)
+
+# View the result with updated mouse IDs
+head(final_data)
+
+str(final_data)
+ 
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(lubridate)
+
+# Function to process each sheet and extract important dates
+process_sheet <- function(sheet_name, range, remove_cols, rename_cols) {
+  
+  # Read the entire sheet to extract dates from the first row
+  full_data <- read_excel("Glucose Tracking Results.xlsx", sheet = sheet_name, col_names = FALSE)
+  
+  # Extract the important dates from every 3rd column starting from the 9th column (I1)
+  important_dates_raw <- full_data[1, seq(9, ncol(full_data), by = 3)]
+  
+  # Convert the important dates to Date format
+  important_dates <- as.Date(as.numeric(important_dates_raw), origin = "1899-12-30") 
+  
+  # Read the data
+  data <- read_excel("Glucose Tracking Results.xlsx", sheet = sheet_name, range = range, col_names = FALSE)
+  
+  # Remove specified columns by their indices
+  data <- data[, -remove_cols]
+  
+  # Rename the first few columns
+  colnames(data)[1:length(rename_cols)] <- rename_cols
+  
+  # Identify columns to remove starting from column 9
+  num_cols <- ncol(data)
+  cols_to_remove <- seq(7, num_cols, by = 3)
+  
+  # Remove those columns by their indices
+  data <- data[, -cols_to_remove]
+  
+  data <- data %>%
+    mutate(across(everything(), as.character))
+  
+  # Replace "HI" with 750 across all columns
+  data <- data %>%
+    mutate(across(everything(), ~ ifelse(. == "HI", "750", .)))
+  
+  # Create new column names based on the important dates and test weeks
+  num_dates <- length(important_dates)
+  new_colnames <- vector("character", num_dates * 2) # To hold both date and test week names
+  
+  for (i in seq_len(num_dates)) {
+    new_colnames[2 * i - 1] <- as.character(important_dates[i])  # Odd columns with dates
+    new_colnames[2 * i] <- paste0(i) # Even columns with test week numbers
+  }
+  
+  # Combine existing and new names
+  all_colnames <- c(rename_cols, new_colnames)
+  
+  # Ensure all names are unique
+  unique_colnames <- make.unique(all_colnames)
+  
+  # Rename the columns
+  data <- setNames(data, unique_colnames)
+  
+  return(list(data = data, important_dates = important_dates)) # Return both data and important dates
+}
+
+# Process all sheets
+result_1 <- process_sheet("Group 1 - Blood Glucose", "A9:DB28", c(6, 7), c("mouse_id", "sex", "dob", "genotype",  "first_test_week"))
+result_2 <- process_sheet("2 - Blood Glucose", "A9:CX28", c(6,7), c("mouse_id", "sex",  "dob","genotype", "first_test_week"))
+result_3 <- process_sheet("Group 3 Blood Glucose", "A9:CY28", c(6, 7), c("mouse_id", "sex", "dob", "genotype",  "first_test_week"))
+result_4 <- process_sheet("Group 4 - Blood Glucose", "A9:CY29", c(6, 7), c("mouse_id", "sex", "dob", "genotype",  "first_test_week"))
+
+# Combine processed results
+results <- list(result_1$data, result_2$data, result_3$data, result_4$data)
+
+selected_sheets <- results[1:4]
+
+combine_sheets <- function(data, sheet_index) {
+  # Rename columns to lower case with underscores
+  data <- data %>%
+    rename_with(~ str_replace_all(str_to_lower(.), " ", "_"))
+  
+  # Convert relevant columns to numeric
+  data <- data %>%
+    mutate(across(matches("^[0-9]+$"), as.numeric)) %>%
+    mutate(across(matches("^[0-9]{4}-[0-9]{2}-[0-9]{2}$"), ~ as.numeric(.)))
+  
+  # Ensure mouse_id is character and append sheet index
+  data <- data %>%
+    mutate(
+    mouse_id = paste0(as.character(mouse_id), "_", sheet_index),
+    dob = as.character(dob),
+    first_test_week = as.character(first_test_week)
+  )
+  
+  # Identify glucose and body weight columns
+  column_names <- names(data)
+  glucose_cols <- column_names[grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", column_names)]
+  body_weight_cols <- column_names[grepl("^[0-9]+$", column_names)]
+  
+  # Generate mapping of test weeks
+  test_weeks <- seq_along(glucose_cols)
+  date_to_week <- data.frame(
+    test_date = glucose_cols,
+    test_week = as.character(test_weeks)
+  )
+  
+  
+  # Pivot longer for glucose readings
+  long_glucose_data <- data %>%
+    pivot_longer(
+      cols = all_of(glucose_cols),
+      names_to = "test_date",
+      values_to = "glucose_reading"
+    ) %>%
+    left_join(date_to_week, by = "test_date") %>%
+    select(mouse_id, test_date, test_week, glucose_reading) %>%
+    mutate(test_week = as.character(test_week))
+  
+  # Pivot longer for body weights
+  long_body_data <- data %>%
+    pivot_longer(
+      cols = all_of(body_weight_cols),
+      names_to = "test_week",
+      values_to = "body_weight"
+    ) %>%
+   select(mouse_id, sex, genotype, dob, first_test_week, test_week, body_weight)
+  
+  # Merge body weight and glucose reading data sets
+  combined_data <- long_body_data %>%
+    left_join(long_glucose_data, by = c("mouse_id", "test_week"))
+  
+  return(combined_data)
+}
+
+# Process each result and combine the results
+all_data <- lapply(seq_along(selected_sheets), function(i) {
+  combine_sheets(selected_sheets[[i]], i)
+}) %>%
+  bind_rows()
+
+# Final structure: retain all columns
+final_data_2 <- all_data %>%
+  select(mouse_id, sex, genotype, dob, first_test_week, test_date, test_week, glucose_reading, body_weight)
+
+# View the result
+head(final_data_2)
+
+
+combined_data_all <- rbind(final_data_2, final_data)
+
+combined_data_all <- combined_data_all %>% mutate(sex = str_replace(sex, "f", "F"), sex = str_replace(sex, "m", "M"), genotype = str_replace(genotype, "WT", "Wt"), genotype = factor(genotype, levels = c("Wt","Het", "Hom"))) %>% mutate(test_week = as.numeric(test_week))
+
+
+
+str(combined_data_all)
+
+
+
+combined_data_all_clean <- combined_data_all %>%
+  filter(!(is.na(glucose_reading) & is.na(body_weight)))
+
+combined_data_all_clean <- combined_data_all_clean %>%
+  group_by(mouse_id) %>%                   # Group by each mouse
+  mutate(status = if_else(test_week == max(test_week), 1, 0)) %>%
+  ungroup()                               # Ungroup the data
+```
+
+```{r}
+
+
+
+# Load necessary libraries
+library(survival)
+library(survminer)
+library(dplyr)
+
+# Assuming `combined_data` contains the relevant columns:
+# mouse_id, genotype, test_week, glucose_reading
+
+# Create an event indicator based on the criterion of two consecutive readings above 250 mg/dl
+combined_data <- combined_data_all %>%
+  arrange(mouse_id, test_week) %>%  # Ensure data is sorted by mouse ID and test week
+  group_by(mouse_id) %>%
+  mutate(is_above_250 = glucose_reading > 250) %>%
+  mutate(event = case_when(
+           is_above_250 & lead(is_above_250) ~ 1,  # Event occurs if two consecutive readings are above 250
+           TRUE ~ 0  # No event
+         )) %>%
+  # Keep the first occurrence of the event and ignore subsequent readings below 250
+  mutate(event = ifelse(cumsum(event) > 0 & lag(is_above_250, default = FALSE) == TRUE, 1, 0)) %>%
+  mutate(event = ifelse(cumsum(event) > 0 & is_above_250 == FALSE, 0, event)) %>%
+  ungroup() %>%
+  # Select only the relevant columns for the survival analysis
+  filter(event == 1 | event == 0) %>%
+  mutate(event = ifelse(event == 1, 1, 0))  # Ensure the event indicator is binary
+
+# Ensure test_week is numeric
+combined_data <- combined_data %>%
+  mutate(test_week = as.numeric(test_week))  # Convert test_week to numeric
+
+# Prepare the survival object
+surv_object <- Surv(time = combined_data$test_week, event = combined_data$event)
+
+# Fit a Cox proportional hazards model
+cox_model <- coxph(surv_object ~ genotype, data = combined_data)
+
+# Summarize the model
+summary(cox_model)
+
+# Fit a Kaplan-Meier estimator
+km_fit <- survfit(surv_object ~ genotype, data = combined_data)
+
+# Visualize the survival curves
+ggsurvplot(km_fit, data = combined_data, 
+           pval = TRUE,              # Show p-value
+           conf.int = TRUE,         # Show confidence intervals
+           ggtheme = theme_minimal(), # Theme
+           title = "Survival Curves by Genotype (Criteria: Two Consecutive Readings Above 250 mg/dl)")
+
+```
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(survminer)
+library(dplyr)
+
+# Assuming `combined_data` contains the relevant columns:
+# mouse_id, genotype, test_week, glucose_reading
+
+# Create an event indicator based on the criterion of two readings above 250 mg/dl
+combined_data <- combined_data_all %>%
+  arrange(mouse_id, test_week) %>%  # Ensure data is sorted by mouse ID and test week
+  group_by(mouse_id) %>%
+  mutate(is_above_250 = glucose_reading > 250) %>%
+  mutate(event = ifelse(cumsum(is_above_250) >= 2, 1, 0)) %>%  # Event occurs if there are at least two readings above 250
+  ungroup() %>%
+  # Select only the relevant columns for the survival analysis
+  filter(event == 1 | event == 0) %>%
+  mutate(event = ifelse(event == 1, 1, 0))  # Ensure the event indicator is binary
+
+# Ensure test_week is numeric
+combined_data <- combined_data %>%
+  mutate(test_week = as.numeric(test_week))  # Convert test_week to numeric
+
+# Prepare the survival object
+surv_object <- Surv(time = combined_data$test_week, event = combined_data$event)
+
+# Fit a Cox proportional hazards model
+cox_model <- coxph(surv_object ~ genotype, data = combined_data)
+
+# Summarize the model
+summary(cox_model)
+
+# Fit a Kaplan-Meier estimator
+km_fit <- survfit(surv_object ~ genotype, data = combined_data)
+
+# Visualize the survival curves
+ggsurvplot(km_fit, data = combined_data, 
+           pval = TRUE,              # Show p-value
+           conf.int = TRUE,         # Show confidence intervals
+           ggtheme = theme_minimal(), # Theme
+           title = "Survival Curves by Genotype (Criteria: Two Readings Above 250 mg/dl)")
+
+```
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(survminer)
+library(dplyr)
+
+# Assuming `combined_data` contains the relevant columns:
+# mouse_id, genotype, test_week, glucose_reading
+
+# Create an event indicator based on the criterion of one reading above 250 mg/dl
+combined_data <- combined_data_all %>%
+  arrange(mouse_id, test_week) %>%  # Ensure data is sorted by mouse ID and test week
+  group_by(mouse_id) %>%
+  mutate(event = ifelse(any(glucose_reading > 250), 1, 0)) %>%  # Event occurs if there is at least one reading above 250
+  ungroup() %>%
+  # Select only the relevant columns for the survival analysis
+  filter(event == 1 | event == 0) %>%
+  mutate(event = ifelse(event == 1, 1, 0))  # Ensure the event indicator is binary
+
+# Ensure test_week is numeric
+combined_data <- combined_data %>%
+  mutate(test_week = as.numeric(test_week))  # Convert test_week to numeric
+
+# Prepare the survival object
+surv_object <- Surv(time = combined_data$test_week, event = combined_data$event)
+
+# Fit a Cox proportional hazards model
+cox_model <- coxph(surv_object ~ genotype, data = combined_data)
+
+# Summarize the model
+summary(cox_model)
+
+# Fit a Kaplan-Meier estimator
+km_fit <- survfit(surv_object ~ genotype, data = combined_data)
+
+# Visualize the survival curves
+ggsurvplot(km_fit, data = combined_data, 
+           pval = TRUE,              # Show p-value
+           conf.int = TRUE,         # Show confidence intervals
+           ggtheme = theme_minimal(), # Theme
+           title = "Survival Curves by Genotype (Criteria: One Reading Above 250 mg/dl)")
+
+```
+
+#Models (Weibull, Log Normal, Exponential)
+
+```{r}
+library(dplyr)
+library(survival)
+
+# Criterion 1: Two consecutive blood glucose readings above 250 mg/dl across all test weeks
+criterion1 <- combined_data_all %>%
+  group_by(mouse_id, genotype) %>%
+  arrange(test_week) %>%
+  mutate(
+    above_250 = glucose_reading > 250,
+    above_250 = ifelse(is.na(above_250), FALSE, above_250),
+    criterion1 = above_250 & lag(above_250, default = FALSE)
+  ) %>%
+  summarize(criterion1 = any(criterion1), 
+            test_week = max(test_week, na.rm = TRUE),  # Include test_week
+            .groups = 'drop')
+
+# Criterion 2: Two readings above 250 mg/dl (consecutive or not) across all test weeks
+criterion2 <- combined_data_all %>%
+  group_by(mouse_id, genotype) %>%
+  summarize(criterion2 = sum(glucose_reading > 250, na.rm = TRUE) >= 2, 
+            test_week = max(test_week, na.rm = TRUE),  # Include test_week
+            .groups = 'drop')
+
+# Criterion 3: One reading above 250 mg/dl across all test weeks
+criterion3 <- combined_data_all %>%
+  group_by(mouse_id, genotype) %>%
+  summarize(criterion3 = any(glucose_reading >= 250, na.rm = TRUE), 
+            test_week = max(test_week, na.rm = TRUE),  # Include test_week
+            .groups = 'drop')
+
+# Combine the criteria into one dataframe
+criteria_summary <- criterion1 %>%
+  left_join(criterion2, by = c("mouse_id", "genotype")) %>%
+  left_join(criterion3, by = c("mouse_id", "genotype"))
+
+# Select only the desired columns
+criteria_summary <- criteria_summary %>%
+  select(mouse_id, genotype, test_week, criterion1, criterion2, criterion3)
+
+# Print criteria summary to check
+print(criteria_summary)
+
+# Fit Weibull models for each criterion
+model_w_1 <- survreg(Surv(test_week, as.numeric(criterion1)) ~ genotype, data = criteria_summary, dist = "weibull")
+model_w_2 <- survreg(Surv(test_week, as.numeric(criterion2)) ~ genotype, data = criteria_summary, dist = "weibull")
+model_w_3 <- survreg(Surv(test_week, as.numeric(criterion3)) ~ genotype, data = criteria_summary, dist = "weibull")
+
+# Fit log normal models for each criterion
+model_ln_1 <- survreg(Surv(test_week, as.numeric(criterion1)) ~ genotype, data = criteria_summary, dist = "lognormal")
+model_ln_2 <- survreg(Surv(test_week, as.numeric(criterion2)) ~ genotype, data = criteria_summary, dist = "lognormal")
+model_ln_3 <- survreg(Surv(test_week, as.numeric(criterion3)) ~ genotype, data = criteria_summary, dist = "lognormal")
+
+# Fit exponential models for each criterion
+model_e_1 <- survreg(Surv(test_week, as.numeric(criterion1)) ~ genotype, data = criteria_summary, dist = "exponential")
+model_e_2 <- survreg(Surv(test_week, as.numeric(criterion2)) ~ genotype, data = criteria_summary, dist = "exponential")
+model_e_3 <- survreg(Surv(test_week, as.numeric(criterion3)) ~ genotype, data = criteria_summary, dist = "exponential")
+
+
+
+# Compare models
+summary(model_w_1)
+summary(model_w_2)
+summary(model_w_3)
 
 
 ```
 
+```{r}
+library(survival)
+library(dplyr)
+library(tidyr)
+
+cleaned_data_all <- combined_data_all %>%
+  filter(!(is.na(glucose_reading) & is.na(body_weight)))
+
+library(dplyr)
+library(tidyr)
+
+combined_data_all_1 <- combined_data_all %>%
+  group_by(mouse_id) %>%
+  arrange(mouse_id, test_week) %>%
+  mutate(
+    above_250 = glucose_reading >= 250,  # Flag readings above 250
+    event = ifelse(above_250, 1, 0)  # Initial event marking
+  ) %>%
+  # Adjust events based on subsequent readings
+  mutate(
+    event = case_when(
+      is.na(glucose_reading) ~ 2,  # Mark NA values as 2
+      above_250 & lead(glucose_reading, order_by = test_week) < 250 ~ 0,  # Reset event to 0 if next reading is below 250
+      TRUE ~ event
+    )
+  ) %>%
+  fill(event, .direction = "down") %>%  # Fill down the event flag, propagating 1s
+  mutate(
+    event = case_when(
+      glucose_reading < 250 & lag(event, default = 0) == 1 ~ 0,  # Reset to 0 if any reading below 250 follows
+      TRUE ~ event
+    )
+  ) %>%
+  ungroup()
+
+
+
+# Step 2: Create the survival object using the event variable
+surv_object <- Surv(time = combined_data_all_1$test_week, event = combined_data_all_1$event == 1)
+
+# Step 3: Fit the Weibull survival model
+model_w_1 <- survreg(surv_object ~ genotype, data = combined_data_all_1, dist = "weibull")
+model_ln_1 <- survreg(surv_object ~ genotype, data = combined_data_all_1, dist = "lognormal")
+model_e_1 <- survreg(surv_object ~ genotype, data = combined_data_all_1, dist = "exponential")
+
+
+
+
+
+# Step 1: Group by mouse_id and flag exactly two instances
+combined_data_all_2 <- combined_data_all %>%
+  group_by(mouse_id) %>%
+  mutate(
+    high_glucose_count = cumsum(glucose_reading >= 250),  # Cumulative count of readings >= 250
+    high_glucose_flag = ifelse(high_glucose_count == 1, 1, 0)  # Flag the second occurrence
+  ) %>%
+  ungroup()
+
+# Step 2: Create the survival object with the correct event definition
+surv_object <- Surv(time = combined_data_all_2$test_week, event = combined_data_all_2$high_glucose_flag == 1)
+
+# Step 3: Fit the Weibull survival model
+model_w_2 <- survreg(surv_object ~ genotype, data = combined_data_all_2, dist = "weibull")
+model_ln_2 <- survreg(surv_object ~ genotype, data = combined_data_all_2, dist = "lognormal")
+model_e_2 <- survreg(surv_object ~ genotype, data = combined_data_all_2, dist = "exponential")
+
+
+
+
+# Step 1: Group by mouse_id and flag the first occurrence of glucose_reading >= 250
+combined_data_all_3 <- combined_data_all %>%
+  group_by(mouse_id) %>%
+  mutate(event = ifelse(glucose_reading >= 250 & !duplicated(glucose_reading >= 250), 1, 0)) %>%
+  ungroup()
+
+# Step 2: Create the survival object with the event for exactly one reading of 250 or more
+surv_object <- Surv(time = combined_data_all_3$test_week, event = combined_data_all_3$event)
+# Step 3: Fit the Weibull survival model
+model_w_3 <- survreg(surv_object ~ genotype, data = combined_data_all_3, dist = "weibull")
+model_ln_3 <- survreg(surv_object ~genotype, data = combined_data_all_3, dist = "lognormal")
+model_e_3 <- survreg(surv_object ~genotype, data = combined_data_all_3, dist = "exponential")
+
+
+
+```
+
+```{r}
+
+library(survival)
+library(dplyr)
+library(tidyr)
+
+cleaned_data_all <- combined_data_all %>%
+  filter(!(is.na(glucose_reading) & is.na(body_weight)))
+
+
+
+library(dplyr)
+
+criteria_3_data <- cleaned_data_all %>%
+  group_by(mouse_id) %>%
+  arrange(test_week) %>%  # Arrange by test_week
+  mutate(lead_glucose = lead(glucose_reading),
+                lead_lead_glucose = lead(lead(glucose_reading)),
+         event = if_else(glucose_reading > 250 & lead_glucose > 250 & lead_lead_glucose, 1, 0)) %>%
+  drop_na(event) %>%
+  group_by(mouse_id) %>%
+  filter(
+    # Keep rows with event = 1 if it exists
+    (event == 1) | 
+    # If no event = 1, keep rows with event = 0
+    (event == 0 & !any(event == 1))
+  ) %>%
+  # Ensure only one row per mouse_id is kept
+  slice(if(any(event == 1)) which(event == 1)[1] else which(event == 0)[length(which(event == 0))]) %>%
+  ungroup()
+
+```
+
+```{r}
+library(survival)
+library(emmeans)
+library(ggplot2)
+
+# Fit the Weibull survival model
+weibull_model <- survreg(Surv(test_week, event) ~ genotype, data = criteria_3_data, dist = "weibull")
+
+# Create a new data frame for predictions
+newdata <- expand.grid(
+  test_week = seq(min(criteria_3_data$test_week), max(criteria_3_data$test_week), length.out = 100),
+  genotype = unique(criteria_3_data$genotype)
+)
+
+# Predict survival times
+# We use the 'predict' function but may need to adjust to get survival probabilities
+predicted_survival <- predict(weibull_model, newdata = newdata, type = "quantile", p = 0.5)
+predictions_df <- data.frame(newdata, predicted_survival = predicted_survival)
+
+# Fit a linear model for emmeans (here, using predicted survival)
+model_for_emmeans <- lm(predicted_survival ~ genotype, data = predictions_df)
+
+# Get estimated marginal means and perform pairwise comparisons
+emm <- emmeans(model_for_emmeans, ~ genotype)
+pairwise_comparisons <- contrast(emm, method = "pairwise")
+
+# Plot survival curves
+ggplot(predictions_df, aes(x = test_week, y = predicted_survival, color = genotype)) +
+  geom_line() +
+  labs(x = "Time (Test Week)", y = "Predicted Median Survival Time",
+       title = "Survival Curves by Genotype") +
+  theme_minimal()
+
+# Convert pairwise comparisons to a data frame
+pairwise_df <- as.data.frame(pairwise_comparisons)
+
+# Plot pairwise differences
+ggplot(pairwise_df, aes(x = contrast, y = estimate, color = contrast)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = estimate - SE, ymax = estimate + SE), width = 0.2) +
+  labs(x = "Genotype Comparison", y = "Difference in Survival Times",
+       title = "Pairwise Differences in Survival Times Across Genotypes") +
+  theme_minimal()
+
+
+```
+
+```{r}
+library(survival)
+library(dplyr)
+library(ggplot2)
+library(broom)
+library(plotly)
+
+# Define a sequence of test_week values for prediction
+test_week_seq <- seq(min(combined_data_all$test_week, na.rm = TRUE),
+                     max(combined_data_all$test_week),
+                     length.out = 100)
+
+# Create a dataframe for genotype levels
+genotype_levels <- unique(combined_data_all$genotype)
+
+# Create a data frame for all combinations of test_week and genotype
+pred_data <- expand.grid(test_week = test_week_seq, genotype = genotype_levels)
+
+# Extract coefficients from the model
+model_summary <- broom::tidy(model_w_3)
+coefficients <- model_summary %>% pull(estimate, term)
+intercept <- coefficients["(Intercept)"]
+log_scale <- coefficients["Log(scale)"]  # Log(scale) might be the scale parameter
+genotype_effects <- coefficients[grep("genotype", names(coefficients))]
+
+# Calculate scale parameter (lambda) and shape parameter (gamma)
+scale_param <- exp(intercept)  # if intercept represents log(scale)
+shape_param <- exp(-log_scale) # this depends on whether log_scale is shape
+
+# Calculate predicted values
+pred_data <- pred_data %>%
+  mutate(
+    # Linear predictor for each genotype
+    linear_pred = intercept +
+                  case_when(
+                    genotype == "Het" ~ genotype_effects["genotypeHet"],
+                    genotype == "Hom" ~ genotype_effects["genotypeHom"],
+                    TRUE ~ 0
+                  ),
+    # Scale parameter based on linear predictor
+    scale_param = exp(linear_pred), # scale parameter based on linear_pred
+    # Predicted survival probability
+    predicted = exp(-((test_week / scale_param) ^ shape_param))
+  )
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Create the ggplot object
+p <- ggplot(pred_data, aes(x = test_week, y = predicted, color = genotype, fill = genotype)) +
+  geom_line(size = 1) +
+  labs(title = "Weibull Model Predictions",
+       x = "Test Week",
+       y = "Predicted Value",
+       color = "Genotype",
+       fill = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette) +
+  scale_fill_manual(values = color_palette) +
+  geom_hline(yintercept = 0.50, linetype = "dashed", color = "gray")
+
+# Convert to a Plotly object
+ggplotly(p)
+
+```
+
+#### Weibull
+
+```{r}
+library(survival)
+library(dplyr)
+library(ggplot2)
+library(broom)
+library(plotly)
+
+# Define a sequence of test_week values for prediction
+test_week_seq <- seq(min(combined_data_all$test_week, na.rm = TRUE),
+                     max(combined_data_all$test_week),
+                     length.out = 100)
+
+# Create a dataframe for genotype levels
+genotype_levels <- unique(combined_data_all$genotype)
+
+# Create a data frame for all combinations of test_week and genotype
+pred_data <- expand.grid(test_week = test_week_seq, genotype = genotype_levels)
+
+# Extract coefficients and standard errors from the model
+coefficients <- broom::tidy(model_w_1) %>% pull(estimate, name = term)
+intercept <- coefficients["(Intercept)"]
+log_scale <- coefficients["Log(scale)"]  # Log(scale) might be the scale parameter
+genotype_effects <- coefficients[grep("genotype", names(coefficients))]
+
+std_errors <- broom::tidy(model_w_1) %>% pull(std.error, name = term)
+intercept_se <- std_errors["(Intercept)"]
+genotype_se <- std_errors[grep("genotype", names(std_errors))]
+
+# Calculate scale parameter (lambda) and shape parameter (gamma)
+scale_param <- exp(intercept)  # if intercept represents log(scale)
+shape_param <- exp(-log_scale) # this depends on whether log_scale is shape
+
+# Calculate predicted values and confidence intervals
+pred_data <- pred_data %>%
+  mutate(
+    linear_pred = intercept +
+                  case_when(
+                    genotype == "Het" ~ genotype_effects["genotypeHet"],
+                    genotype == "Hom" ~ genotype_effects["genotypeHom"],
+                    TRUE ~ 0
+                  ),
+    scale_param = exp(linear_pred), # scale parameter based on linear_pred
+    predicted = exp(-((test_week / scale_param) ^ shape_param)),
+    # Confidence intervals on the original scale
+    lower_ci = exp(-((test_week / (scale_param * exp(-1.96 * intercept_se))) ^ shape_param)),
+    upper_ci = exp(-((test_week / (scale_param * exp(1.96 * intercept_se))) ^ shape_param))
+  )
+
+# Ensure that confidence intervals don't drop below zero
+pred_data <- pred_data %>%
+  mutate(
+    lower_ci = pmax(lower_ci, 0),
+    upper_ci = pmax(upper_ci, 0)
+  )
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Create the plotly plot
+p <- ggplot(pred_data, aes(x = test_week, y = predicted, color = genotype, fill = genotype)) +
+  geom_line(size = 1) +
+  geom_ribbon(aes(ymin = lower_ci, ymax = upper_ci), alpha = 0.25, color = NA) +
+  labs(title = "Weibull Model Predictions with Confidence Intervals",
+       x = "Test Week",
+       y = "Predicted Value",
+       color = "Genotype",
+       fill = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette) +
+  scale_fill_manual(values = color_palette) +
+  geom_hline(yintercept = 0.50, linetype = "dashed", color = "gray")
+
+# Convert to a Plotly object
+ggplotly(p)
+
+```
+
+### Log Normal
+
+```{r}
+library(survival)
+library(dplyr)
+library(ggplot2)
+library(broom)
+
+# Define a sequence of test_week values for prediction
+test_week_seq <- seq(min(combined_data_all$test_week, na.rm = TRUE),
+                     max(combined_data_all$test_week),
+                     length.out = 100)
+
+# Create a dataframe for genotype levels
+genotype_levels <- unique(combined_data_all$genotype)
+
+# Create a data frame for all combinations of test_week and genotype
+pred_data <- expand.grid(test_week = test_week_seq, genotype = genotype_levels)
+
+# Extract coefficients from the model
+coefficients <- broom::tidy(model_ln_3) %>% pull(estimate, name = term)
+intercept <- coefficients["(Intercept)"]
+log_scale <- coefficients["Log(scale)"]
+genotype_effects <- coefficients[grep("genotype", names(coefficients))]
+
+# Calculate linear predictors and predicted values
+pred_data <- pred_data %>%
+  mutate(
+    linear_pred = intercept +
+                  case_when(
+                    genotype == "Het" ~ genotype_effects["genotypeHet"],
+                    genotype == "Hom" ~ genotype_effects["genotypeHom"],
+                    TRUE ~ 0
+                  ),
+    scale_param = exp(log_scale),
+    predicted = pnorm((log(test_week) - linear_pred) / scale_param)
+  )
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Plot predictions
+ggplot(pred_data, aes(x = test_week, y = predicted, color = genotype)) +
+  geom_line() +
+  labs(title = "Log Normal Model Predictions",
+       x = "Test Week",
+       y = "Predicted Value",
+       color = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette)
+
+```
+
+```{r}
+library(survival)
+library(dplyr)
+library(ggplot2)
+# Define a sequence of test_week values for prediction
+test_week_seq <- seq(min(combined_data_all$test_week, na.rm = TRUE),
+                     max(combined_data_all$test_week),
+                     length.out = 100)
+# Create a dataframe for genotype levels
+genotype_levels <- unique(combined_data_all$genotype)
+# Create a data frame for all combinations of test_week and genotype
+pred_data <- expand.grid(test_week = test_week_seq, genotype = genotype_levels)
+# Extract coefficients from the model
+coefficients <- broom::tidy(model_ln_1) %>% pull(estimate, name = term)
+intercept <- coefficients["(Intercept)"]
+log_scale <- coefficients["Log(scale)"]
+genotype_effects <- coefficients[grep("genotype", names(coefficients))]
+# Calculate linear predictors and predicted values
+pred_data <- pred_data %>%
+  mutate(
+    linear_pred = intercept +
+                  case_when(
+                    genotype == "Het" ~ genotype_effects["genotypeHet"],
+                    genotype == "Hom" ~ genotype_effects["genotypeHom"],
+                    TRUE ~ 0
+                  ) , 
+    scale_param = exp(-log_scale),
+    predicted = exp(-((test_week / exp(linear_pred)) ^ scale_param))
+  )
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Plot predictions
+ggplot(pred_data, aes(x = test_week, y = predicted, color = genotype)) +
+  geom_line() +
+  labs(title = "Log Normal Model Predictions",
+       x = "Test Week",
+       y = "Predicted Value",
+       color = "Genotype") +
+  theme_minimal()+
+   scale_color_manual(values = color_palette)
+  
+```
+
+### Exponenetial
+
+```{r}
+library(survival)
+library(dplyr)
+library(ggplot2)
+library(broom)
+
+# Define a sequence of test_week values for prediction
+test_week_seq <- seq(min(combined_data_all$test_week, na.rm = TRUE),
+                     max(combined_data_all$test_week, na.rm = TRUE),
+                     length.out = 100)
+
+# Create a dataframe for genotype levels
+genotype_levels <- unique(combined_data_all$genotype)
+
+# Create a data frame for all combinations of test_week and genotype
+pred_data <- expand.grid(test_week = test_week_seq, genotype = genotype_levels)
+
+# Extract coefficients from the model
+coefficients <- broom::tidy(model_e_3)
+intercept <- coefficients %>% filter(term == "(Intercept)") %>% pull(estimate)
+genotype_effects <- coefficients %>% filter(str_detect(term, "genotype")) %>% pull(estimate, term)
+
+# Calculate linear predictors and predicted values
+pred_data <- pred_data %>%
+  mutate(
+    linear_pred = intercept +
+                  case_when(
+                    genotype == "Het" ~ genotype_effects["genotypeHet"],
+                    genotype == "Hom" ~ genotype_effects["genotypeHom"],
+                    TRUE ~ 0
+                  ),
+    rate = exp(-linear_pred),  # Exponential model rate parameter
+    predicted = exp(-rate * test_week)
+  )
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Plot predictions
+ggplot(pred_data, aes(x = test_week, y = predicted, color = genotype)) +
+  geom_line() +
+  labs(title = "Exponential Model Predictions",
+       x = "Test Week",
+       y = "Predicted Value",
+       color = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette)
+
+```
+
+Blood Glucose
+
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Clean the data and store it in a new variable
+cleaned_data_all <- combined_data_all %>%
+  filter(!is.na(body_weight)) # Remove any rows with NA body weight values
+
+# Fit a generalized linear model (GLM) for body weight over test weeks
+model_bw <- glm(body_weight ~ test_week * genotype, data = cleaned_data_all, family = gaussian())
+
+# Summarize the model
+summary(model_bw)
+
+# Define a sequence of test_week values for prediction
+test_week_seq <- seq(min(cleaned_data_all$test_week, na.rm = TRUE),
+                     max(cleaned_data_all$test_week),
+                     length.out = 100)
+
+# Create a dataframe for genotype levels
+genotype_levels <- unique(cleaned_data_all$genotype)
+
+# Create a data frame for all combinations of test_week and genotype
+pred_data <- expand.grid(test_week = test_week_seq, genotype = genotype_levels)
+
+# Predict body weight using the model
+pred_data <- pred_data %>%
+  mutate(predicted_weight = predict(model_bw, newdata = pred_data, type = "response"))
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Plot the predicted body weights over test weeks
+ggplot(pred_data, aes(x = test_week, y = predicted_weight, color = genotype)) +
+  geom_line() +
+  labs(title = "Predicted Body Weight Over Test Weeks",
+       x = "Test Week",
+       y = "Predicted Body Weight",
+       color = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette)
+
+```
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(lme4)
+
+# Clean the data and store it in a new variable
+cleaned_data_all <- combined_data_all %>%
+  filter(!is.na(body_weight)) # Remove any rows with NA body weight values
+
+# Fit a Linear Mixed Effects Model (LMM) for body weight over test weeks
+lmm_model <- lmer(body_weight ~ test_week * genotype + (1 | mouse_id), data = cleaned_data_all)
+
+# Summarize the model
+summary(lmm_model)
+
+# Define a sequence of test_week values for prediction
+test_week_seq <- seq(min(cleaned_data_all$test_week, na.rm = TRUE),
+                     max(cleaned_data_all$test_week),
+                     length.out = 100)
+
+# Create a dataframe for genotype levels
+genotype_levels <- unique(cleaned_data_all$genotype)
+
+# Create a data frame for all combinations of test_week and genotype
+pred_data <- expand.grid(test_week = test_week_seq, genotype = genotype_levels)
+
+# Predict body weight using the model
+pred_data <- pred_data %>%
+  mutate(predicted_weight = predict(lmm_model, newdata = pred_data, re.form = NA))
+
+# Calculate confidence intervals for the predictions
+pred_data <- pred_data %>%
+  mutate(pred_se = predict(lmm_model, newdata = pred_data, re.form = NA, se.fit = TRUE)$se.fit,
+         pred_lower = predicted_weight - 1.96 * pred_se,
+         pred_upper = predicted_weight + 1.96 * pred_se)
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Plot the predicted body weights over test weeks with confidence intervals
+ggplot(pred_data, aes(x = test_week, y = predicted_weight, color = genotype)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = pred_lower, ymax = pred_upper, fill = genotype), alpha = 0.2, color= NA) +
+  labs(title = "Predicted Body Weight Over Test Weeks",
+       x = "Test Week",
+       y = "Predicted Body Weight",
+       color = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette)+
+  scale_fill_manual(values = color_palette)
+
+```
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(MuMIn)       # For R-squared
+library(emmeans)     # For posthoc group comparisons
+
+# Clean the data and store it in a new variable
+cleaned_data_all <- combined_data_all %>%
+  filter(!is.na(body_weight)) # Remove any rows with NA body weight values
+
+# Fit a Linear Mixed Effects Model (LMM) for body weight over test weeks
+lmm_model <- lmer(body_weight ~ test_week * genotype + (1 | mouse_id), data = cleaned_data_all)
+
+# Summarize the model
+summary(lmm_model)
+
+# Calculate R-squared with confidence intervals
+r2_values <- r.squaredGLMM(lmm_model)
+print(r2_values)
+
+# Posthoc group comparisons using emmeans
+posthoc <- emmeans(lmm_model, pairwise ~ genotype | test_week)
+posthoc_summary <- summary(posthoc)
+print(posthoc_summary)
+
+# Calculate confidence intervals for the predictions
+pred_data <- pred_data %>%
+  mutate(pred_se = predict(lmm_model, newdata = pred_data, re.form = NA, se.fit = TRUE)$se.fit,
+         pred_lower = predicted_weight - 1.96 * pred_se,
+         pred_upper = predicted_weight + 1.96 * pred_se)
+
+# Plot the predicted body weights over test weeks with confidence intervals
+ggplot(pred_data, aes(x = test_week, y = predicted_weight, color = genotype)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = pred_lower, ymax = pred_upper, fill = genotype), alpha = 0.2, color= NA) +
+  labs(title = "Predicted Body Weight Over Test Weeks",
+       x = "Test Week",
+       y = "Predicted Body Weight",
+       color = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette)+
+  scale_fill_manual(values = color_palette)
+
+# Optionally, you can extract and report confidence intervals for your posthoc tests
+# Example of reporting confidence intervals for a specific contrast:
+emmeans_conf <- confint(posthoc)
+print(emmeans_conf)
+
+```
+
+#LIKELIHOOD TEST
+
+```{r}
+
+bw_1 <- lmer(body_weight ~ genotype + test_week + sex + (1 | mouse_id), data = cleaned_data_all)
+
+bw_2 <- lmer(body_weight ~ genotype * test_week + sex + (1 | mouse_id), data = cleaned_data_all)
+
+bw_2_1 <- lmer(body_weight ~ genotype * test_week * sex + (1 | mouse_id), data = cleaned_data_all)
+
+# Fit the model with the main effects and the specific interaction term
+bw_final <- lmer(body_weight ~ genotype + test_week + sex + test_week:sex + (1 | mouse_id), data = cleaned_data_all)
+
+
+bw_3 <- lmer(body_weight ~ test_week * sex + genotype + (1 | mouse_id), data = cleaned_data_all)
+
+bw_4 <- lmer(body_weight ~ genotype * sex + test_week + (1 | mouse_id), data = cleaned_data_all)
+
+bw_5 <- lmer(body_weight ~ genotype * test_week * sex + (1 | mouse_id), data = cleaned_data_all)
+
+bw_6 <- lmer(body_weight ~ genotype + test_week + sex + (1 | mouse_id), data = cleaned_data_all)
+
+bw_7 <- lmer(body_weight ~ genotype * test_week + sex + (test_week | mouse_id), data = cleaned_data_all)
+
+bw_8 <- lmer(body_weight ~ genotype * test_week + sex + (sex | mouse_id), data = cleaned_data_all)
+
+bw_9 <- lmer(body_weight ~ genotype * test_week + (test_week | mouse_id), data = cleaned_data_all)
+
+
+lht <- anova(bw_2, bw_2_1)
+lht
+```
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(emmeans)
+
+cleaned_data_all <- combined_data_all %>%
+  filter(!(is.na(glucose_reading) & is.na(body_weight)))
+
+# Fit the model
+lmm_model <- lmer(body_weight ~ genotype + test_week + sex + test_week:sex + (1 | mouse_id), data =  cleaned_data_all)
+
+
+# Calculate EMMs for the interaction between test_week and sex, accounting for genotype
+emm_df <- emmeans(lmm_model, ~ test_week | genotype * sex) %>% as.data.frame()
+
+
+# Convert EMMs to a data frame for plotting
+View(emm_df)
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Plot the estimated marginal means
+ggplot(emm_df, aes(x = genotype, y = emmean, ymin = asymp.LCL, ymax = asymp.UCL, color = genotype, linetype = sex)) +
+  geom_errorbar(size = 1 ) +   # Add lines with a specified size
+  labs(title = "Predicted Means of Body Weight Over Test Weeks",
+       x = "Test Week",
+       y = "Model Prediction of Mean Body Weight",
+       color = "Genotype",
+       linetype = "Sex") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette) +   # Set colors for genotypes
+  scale_linetype_manual(values = c("M" = "solid", "F" = "dashed")) +  # Set line types for sex
+  theme(legend.position = "bottom")
+```
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(emmeans)
+library(plotly)
+
+cleaned_data_all <- combined_data_all %>%
+  filter(!(is.na(glucose_reading) & is.na(body_weight)))
+
+# Fit the model
+#lmm_model <- lmer(body_weight ~ genotype + test_week + sex + test_week:genotype + test_week:sex + (1 | mouse_id), data =  cleaned_data_all)
+#lmm_model <- lmer(body_weight ~ genotype + poly(test_week, 2) * sex + poly(test_week, 2) * genotype + (1 | mouse_id), data = cleaned_data_all)
+lmm_model <- lmer(body_weight ~ genotype + sex + poly(test_week, 2) + poly(test_week, 2):genotype + poly(test_week, 2):sex + (1 | mouse_id), data = cleaned_data_all)
+
+
+# Generate a sequence of test weeks from 1 to 33
+test_week_seq <- seq(1, 33, by = 1)
+
+# Calculate EMMs for the interaction between test_week and sex within each genotype
+emm <- emmeans(lmm_model, ~ test_week * sex | genotype, at = list(test_week = test_week_seq))
+
+# Convert EMMs to a data frame for plotting
+emm_df <- as.data.frame(emm)
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Define line types for sex
+line_types <- c("M" = "solid", "F" = "dashed")
+
+# Plot the estimated marginal means with shaded error bars and lines along the edges
+bw_emm <- ggplot(emm_df, aes(x = test_week, y = emmean, color = genotype, linetype = sex, fill = genotype)) +
+  geom_line(size = 1) +
+  geom_ribbon(aes(ymax = asymp.UCL, ymin = asymp.LCL), alpha = 0.3, size = 0.8) +  
+  labs(title = "Predicted Means of Body Weight Over Test Weeks",
+       x = "Test Week",
+       y = "Model Prediction of Mean Body Weight",
+       color = "Genotype",
+       linetype = "Sex",
+       fill = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette) +
+  scale_fill_manual(values = color_palette) +
+  scale_linetype_manual(values = line_types) +
+  theme(legend.position = "bottom") +
+  facet_wrap(~ genotype)
+
+# Convert to interactive plot
+ggplotly(bw_emm)
+
+
+```
+
+
+
+
+$$
+\begin{aligned}
+  \operatorname{body\_weight}_{i}  &\sim N \left(\alpha_{j[i]} + \beta_{1}(\operatorname{test\_week}), \sigma^2 \right) \\
+    \alpha_{j}  &\sim N \left(\gamma_{0}^{\alpha} + \gamma_{1}^{\alpha}(\operatorname{genotype}_{\operatorname{Het}}) + \gamma_{2}^{\alpha}(\operatorname{genotype}_{\operatorname{Hom}}) + \gamma_{3}^{\alpha}(\operatorname{sex}_{\operatorname{M}}) + \gamma_{4}^{\alpha}(\operatorname{sex}_{\operatorname{M}} \times \operatorname{test\_week}), \sigma^2_{\alpha_{j}} \right)
+    \text{, for mouse\_id j = 1,} \dots \text{,J}
+\end{aligned}
+$$
+
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(lme4)
+library(emmeans)
+library(plotly)
+
+cleaned_data_all <- combined_data_all %>%
+  filter(!(is.na(glucose_reading) & is.na(body_weight)))
+
+# Fit the model
+#lmm_model <- lmer(glucose_reading ~ genotype + test_week + sex + test_week:genotype + test_week:sex + (1 | mouse_id), data =  cleaned_data_all)
+
+lmm_model <- lmer(glucose_reading ~ genotype + sex + poly(test_week, 2) + poly(test_week, 2):genotype + poly(test_week, 2):sex + (1 | mouse_id), data = cleaned_data_all)
+
+
+# Generate a sequence of test weeks from 1 to 33
+test_week_seq <- seq(1, 33, by = 1)
+
+# Calculate EMMs for the interaction between test_week and sex within each genotype
+emm <- emmeans(lmm_model, ~ test_week * sex | genotype, at = list(test_week = test_week_seq))
+
+# Convert EMMs to a data frame for plotting
+emm_df <- as.data.frame(emm)
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Define line types for sex
+line_types <- c("M" = "solid", "F" = "dashed")
+
+# Plot the estimated marginal means with shaded error bars and lines along the edges
+gr_emm <- ggplot(emm_df, aes(x = test_week, y = emmean, color = genotype, linetype = sex, fill = genotype)) +
+  geom_line(size = 1) +
+  geom_ribbon(aes(ymax = asymp.UCL, ymin = asymp.LCL), alpha = 0.3, size = 0.8) +  
+  labs(title = "Predicted Means of Glucose Readings Over Test Weeks",
+       x = "Test Week",
+       y = "Model Prediction of Mean Glucose Reading",
+       color = "Genotype",
+       linetype = "Sex",
+       fill = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette) +
+  scale_fill_manual(values = color_palette) +
+  scale_linetype_manual(values = line_types) +
+  theme(legend.position = "bottom") +
+  facet_wrap(~ genotype)
+
+# Convert to interactive plot
+ggplotly(gr_emm)
+
+```
+
+```{r}
+# Plot a histogram of the body weight data
+ggplot(cleaned_data_all, aes(x = body_weight)) +
+  geom_histogram(binwidth = 1, fill = "#56B4E9", color = "black") +
+  labs(title = "Histogram of Body Weight", x = "Body Weight", y = "Frequency") +
+  theme_minimal()
+
+shapiro_test <- shapiro.test(cleaned_data_all$body_weight)
+shapiro_test
+
+# Q-Q plot for body weight data
+ggplot(cleaned_data_all, aes(sample = body_weight)) +
+  stat_qq() +
+  stat_qq_line() +
+  labs(title = "Q-Q Plot of Body Weight", x = "Theoretical Quantiles", y = "Sample Quantiles") +
+  theme_minimal()
+
+```
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(lme4)
+
+# Clean the data and store it in a new variable
+cleaned_data_all <- combined_data_all %>%
+  filter(!is.na(glucose_reading)) # Remove any rows with NA glucose reading values
+
+# Fit a Linear Mixed Effects Model (LMM) for glucose readings over test weeks
+lmm_glucose <- lmer(glucose_reading ~ test_week * genotype + (1 | mouse_id), data = cleaned_data_all)
+
+# Summarize the model
+summary(lmm_glucose)
+
+# Define a sequence of test_week values for prediction
+test_week_seq <- seq(min(cleaned_data_all$test_week, na.rm = TRUE),
+                     max(cleaned_data_all$test_week),
+                     length.out = 100)
+
+# Create a dataframe for genotype levels
+genotype_levels <- unique(cleaned_data_all$genotype)
+
+# Create a data frame for all combinations of test_week and genotype
+pred_data_glucose <- expand.grid(test_week = test_week_seq, genotype = genotype_levels)
+
+# Predict glucose reading using the model
+pred_data_glucose <- pred_data_glucose %>%
+  mutate(predicted_glucose = predict(lmm_glucose, newdata = pred_data_glucose, re.form = NA))
+
+# Calculate confidence intervals for the predictions
+pred_data_glucose <- pred_data_glucose %>%
+  mutate(pred_se = predict(lmm_glucose, newdata = pred_data_glucose, re.form = NA, se.fit = TRUE)$se.fit,
+         pred_lower = predicted_glucose - 1.96 * pred_se,
+         pred_upper = predicted_glucose + 1.96 * pred_se)
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Plot the predicted glucose readings over test weeks with confidence intervals
+ggplot(pred_data_glucose, aes(x = test_week, y = predicted_glucose, color = genotype)) +
+  geom_line() +
+  geom_ribbon(aes(ymin = pred_lower, ymax = pred_upper, fill = genotype), alpha = 0.2, color = NA) +
+  labs(title = "Predicted Glucose Readings Over Test Weeks",
+       x = "Test Week",
+       y = "Predicted Glucose Reading",
+       color = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette)+
+  scale_fill_manual(values = color_palette)
+
+```
+
+COX MODEL: TIME TO EUTHENASIA
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(survminer)
+
+# Convert genotype to a factor if not already
+combined_data_all_clean$genotype <- as.factor(combined_data_all_clean$genotype)
+
+# Create a survival object
+surv_object <- Surv(combined_data_all_clean$test_week, combined_data_all_clean$status)
+
+# Fit the survival curves for each genotype
+surv_fit <- survfit(surv_object ~ genotype, data = combined_data_all_clean)
+
+# Plot the survival curves, grouping by genotype
+ggsurvplot(surv_fit, 
+           data = combined_data_all_clean, 
+           risk.table = TRUE, 
+           pval = TRUE, 
+           conf.int = TRUE,
+           ggtheme = theme_minimal(),
+           legend.title = "Genotype",
+           legend.labs = genotype_levels,  # Explicitly set legend labels
+           xlab = "Weeks", 
+           ylab = "Survival Probability"
+)
+
+```
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(dplyr)
+library(ggplot2)
+library(broom)
+
+# Convert genotype to a factor if not already
+combined_data_all_clean$genotype <- as.factor(combined_data_all_clean$genotype)
+
+# Create a survival object
+surv_object <- Surv(combined_data_all_clean$test_week, event = combined_data_all_clean$status == 1)
+
+# Fit the Weibull survival model
+weibull_model <- survreg(surv_object ~ genotype + sex, data = combined_data_all_clean, dist = "weibull")
+
+# Define a sequence of test_week values for prediction
+test_week_seq <- seq(0, max(combined_data_all_clean$test_week, na.rm = TRUE), length.out = 100)
+
+# Create a dataframe for genotype levels
+genotype_levels <- unique(combined_data_all_clean$genotype)
+
+# Create a data frame for all combinations of test_week and genotype
+pred_data <- expand.grid(test_week = test_week_seq, genotype = genotype_levels)
+
+# Extract coefficients from the model
+coefficients <- broom::tidy(weibull_model) %>% pull(estimate, term)
+intercept <- coefficients["(Intercept)"]
+scale_param <- exp(coefficients["Log(scale)"])  # Scale parameter from the model
+genotype_effects <- coefficients[grep("genotype", names(coefficients))]
+
+# Calculate linear predictors and predicted survival probabilities
+pred_data <- pred_data %>%
+  mutate(
+    # Correct the linear predictor calculation
+    linear_pred = intercept +
+                  case_when(
+                    genotype == "Het" ~ genotype_effects["genotypeHet"],
+                    genotype == "Hom" ~ genotype_effects["genotypeHom"],
+                    TRUE ~ 0
+                  ),
+    # Calculate the Weibull survival function
+    predicted = exp(-((test_week / exp(linear_pred)) ^ scale_param))
+  )
+
+# Ensure the predicted values are properly bounded between 0 and 1
+pred_data$predicted <- ifelse(pred_data$predicted < 0, 0, pred_data$predicted)
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Plot predictions
+ggplot(pred_data, aes(x = test_week, y = predicted, color = genotype, linetype= sex)) +
+  geom_line() +
+  labs(title = "Weibull Model Predictions",
+       x = "Test Week",
+       y = "Predicted Survival Probability",
+       color = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette) +
+  ylim(0, 1) # Set y limits to ensure the plot displays between 0 and 1
+
+
+```
+
+```{r}
+# Load necessary libraries
+library(survival)
+library(dplyr)
+library(ggplot2)
+library(broom)
+
+# Convert genotype to a factor if not already
+combined_data_all_clean$genotype <- as.factor(combined_data_all_clean$genotype)
+
+# Create a survival object
+surv_object <- Surv(combined_data_all_clean$test_week, event = combined_data_all_clean$status == 1)
+
+# Fit the Weibull survival model
+weibull_model <- survreg(surv_object ~ genotype + sex, data = combined_data_all_clean, dist = "weibull")
+
+# Define a sequence of test_week values for prediction
+test_week_seq <- seq(0, max(combined_data_all_clean$test_week, na.rm = TRUE), length.out = 100)
+
+# Create a dataframe for genotype levels
+genotype_levels <- unique(combined_data_all_clean$genotype)
+
+# Create a data frame for all combinations of test_week and genotype
+pred_data <- expand.grid(test_week = test_week_seq, genotype = genotype_levels)
+
+# Extract coefficients from the model
+coefficients <- broom::tidy(weibull_model) %>% pull(estimate, term)
+intercept <- coefficients["(Intercept)"]
+scale_param <- exp(coefficients["Log(scale)"])  # Scale parameter from the model
+genotype_effects <- coefficients[grep("genotype", names(coefficients))]
+
+# Calculate linear predictors and predicted survival probabilities
+pred_data <- pred_data %>%
+  mutate(
+    linear_pred = intercept +
+                  case_when(
+                    genotype == "Het" ~ genotype_effects["genotypeHet"],
+                    genotype == "Hom" ~ genotype_effects["genotypeHom"],
+                    TRUE ~ 0
+                  ),
+    # Calculate the Weibull survival function
+    predicted = exp(-((test_week / exp(linear_pred)) ^ scale_param))
+  )
+
+# Ensure the predicted values are properly bounded between 0 and 1
+pred_data$predicted <- ifelse(pred_data$predicted < 0, 0, pred_data$predicted)
+
+# Define your color palette
+color_palette <- c("Het" = "#D55E00", "Hom" = "#56B4E9", "Wt" = "#009E73")
+
+# Plot predictions
+ggplot(pred_data, aes(x = test_week, y = predicted, color = genotype)) +
+  geom_line() +
+  labs(title = "Weibull Model Predictions",
+       x = "Test Week",
+       y = "Predicted Survival Probability",
+       color = "Genotype") +
+  theme_minimal() +
+  scale_color_manual(values = color_palette) +
+  ylim(0, 1) # Set y limits to ensure the plot displays between 0 and 1
+
+```
+
+```{r}
+# Fit the full and reduced Weibull models
+full_model <- survreg(Surv(test_week, status) ~ genotype + sex, data = combined_data_all_clean, dist = "weibull")
+reduced_model <- survreg(Surv(test_week, status) ~ genotype, data = combined_data_all_clean, dist = "weibull")
+
+# Perform the likelihood ratio test
+lrt_result <- anova(reduced_model, full_model)
+
+# Print the results
+summary(lrt_result)
+
+
+
+# Fit the full and reduced Weibull models
+full_model <- survreg(Surv(test_week, status) ~ genotype + sex, data = combined_data_all_clean, dist = "weibull")
+reduced_model <- survreg(Surv(test_week, status) ~ genotype, data = combined_data_all_clean, dist = "weibull")
+
+# Perform the likelihood ratio test
+lrt_result <- anova(reduced_model, full_model)
+
+# Print the results
+summary(lrt_result)
+```
+
+```{r}
+library(dplyr)
+
+# Step 1: Identify the last test_week for each mouse_id
+last_week_data <- combined_data_all_clean %>%
+  group_by(mouse_id) %>%
+  filter(test_week == max(test_week)) %>%
+  ungroup()
+
+# Step 2: Group by genotype and calculate the standard deviation of the last week's test_week
+std_dev_last_week <- last_week_data %>%
+  group_by(genotype) %>%
+  summarize(std_dev = sd(test_week))
+
+# View the results
+print(std_dev_last_week)
+
+
+```
